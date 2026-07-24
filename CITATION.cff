@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "Cite this software if you use BEACON."
+type: software
+title: "BEACON: Bayesian Earth-impact Assessment & Cross-source Observation Network"
+version: 0.1.0
+date-released: "2026-07-23"
+license: MIT
+repository-code: "https://github.com/NovaCoding-G/B.E.A.C.O.N"
+abstract: >-
+  Cross-checks near-Earth object data from NASA/JPL (CAD, Sentry) and ESA
+  NEOCC. Flags disagreements; does not invent impact probabilities.
+authors:
+  - family-names: "BEACON"
+    given-names: "NovaCoding"
+    email: "novacodingg@gmail.com"
+keywords:
+  - near-Earth objects
+  - planetary defense
+  - Sentry
+  - ESA NEOCC
+  - cross-source validation

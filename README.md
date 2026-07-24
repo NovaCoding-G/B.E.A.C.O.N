@@ -1,11 +1,11 @@
 # BEACON
 
 [![CI](https://github.com/NovaCoding-G/B.E.A.C.O.N/actions/workflows/ci.yml/badge.svg)](https://github.com/NovaCoding-G/B.E.A.C.O.N/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vitest](https://img.shields.io/badge/tested%20with-Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
-[![NovaCheck](https://img.shields.io/badge/NovaCheck-100%2F100-brightgreen)](./.novacheck/report.html)
+[![NovaCheck](https://img.shields.io/badge/NovaCheck-100%2F100-brightgreen)](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/.novacheck/report.html)
 
 **Bayesian Earth-impact Assessment & Cross-source Observation Network**
 
@@ -13,15 +13,11 @@ Cross-checks near-Earth object data from **JPL CAD**, **JPL Sentry**, and **ESA 
 
 > Not an alert system. Upstream: [CNEOS](https://cneos.jpl.nasa.gov/) · [ESA NEOCC](https://neo.ssa.esa.int/)
 
-<br />
+**🔴 Live demo: [novabeacon.vercel.app](https://novabeacon.vercel.app)**
 
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="BEACON dashboard" width="900" />
-</p>
+![BEACON dashboard](docs/images/dashboard.png)
 
-<p align="center">
-  <em>Dashboard — live pull from JPL + ESA, risk Δ highlighted</em>
-</p>
+*Dashboard — live pull from JPL + ESA, risk Δ highlighted*
 
 ## Features
 
@@ -32,9 +28,7 @@ Cross-checks near-Earth object data from **JPL CAD**, **JPL Sentry**, and **ESA 
 - Object detail with source table + miss-distance 3D sketch
 - Methodology page documenting cuts and caveats
 
-<p align="center">
-  <img src="docs/images/methodology.png" alt="BEACON methodology" width="900" />
-</p>
+![BEACON methodology](docs/images/methodology.png)
 
 ## Quick start
 
@@ -45,27 +39,27 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open <http://localhost:3000>. Or skip setup entirely and use the [live demo](https://novabeacon.vercel.app).
 
 No database, no API keys. On Windows use the npm scripts (they set `NODE_OPTIONS=--use-system-ca` for ESA TLS).
 
 ## Stack
 
-| | |
-|---|---|
-| App | Next.js 16 (App Router) · React 19 · TypeScript |
-| UI | Tailwind 4 · Three.js / R3F (orbit sketch) |
-| Data | Zod validation · in-memory TTL cache |
-| Tests | Vitest |
+|       |                                                 |
+| ----- | ----------------------------------------------- |
+| App   | Next.js 16 (App Router) · React 19 · TypeScript |
+| UI    | Tailwind 4 · Three.js / R3F (orbit sketch)      |
+| Data  | Zod validation · in-memory TTL cache            |
+| Tests | Vitest                                          |
 
 ## Metrics
 
-| Metric | Meaning |
-|--------|---------|
-| `significantDivergences` | IP / Palermo / Torino past threshold |
-| `totalFieldDivergences` | All flagged fields (incl. distance, v_rel, date) |
+| Metric                   | Meaning                                           |
+| ------------------------ | ------------------------------------------------- |
+| `significantDivergences` | IP / Palermo / Torino past threshold              |
+| `totalFieldDivergences`  | All flagged fields (incl. distance, v_rel, date) |
 
-Threshold table: [`/methodology`](./app/methodology/page.tsx) · live dump: `GET /api/debug/divergences`
+Threshold table: [`/methodology`](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/app/methodology/page.tsx) · live dump: `GET /api/debug/divergences`
 
 ## Scripts
 
@@ -87,18 +81,18 @@ lib/reconcile.ts
 docs/images/   README screenshots
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md).
+See [ARCHITECTURE.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/ARCHITECTURE.md).
 
 ## Limits
 
 - ESA API format can move
 - Cache is in-memory only
 - 3D view = miss distance sketch, not a full orbit
-- We don’t recompute impact probabilities
+- We don't recompute impact probabilities
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+See [CONTRIBUTING.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CODE_OF_CONDUCT.md).
 
 ## Cite
 
@@ -106,13 +100,14 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_COND
 NovaCoding (2026). BEACON. v0.1.0. https://github.com/NovaCoding-G/B.E.A.C.O.N
 ```
 
-Also [CITATION.cff](./CITATION.cff).
+Also [CITATION.cff](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CITATION.cff).
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/LICENSE)
 
 ## Data attribution
 
 - [NASA/JPL CNEOS](https://cneos.jpl.nasa.gov/)
 - [ESA NEO Coordination Centre](https://neo.ssa.esa.int/)
+

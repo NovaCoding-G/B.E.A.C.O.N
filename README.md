@@ -5,6 +5,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vitest](https://img.shields.io/badge/tested%20with-Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![NovaCheck](https://img.shields.io/badge/NovaCheck-100%2F100-brightgreen)](./.novacheck/report.html)
 
 **Bayesian Earth-impact Assessment & Cross-source Observation Network**
 

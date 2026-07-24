@@ -90,6 +90,14 @@ See [ARCHITECTURE.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/ARCH
 - 3D view = miss distance sketch, not a full orbit
 - We don't recompute impact probabilities
 
+ ## Roadmap
+- **v0.2.0** — Third independent source (NEODyS/Clomon2), persistent cache, and UI redesign
+ - **v0.3.0** — History: tracking how estimates change over time, rather than just a snapshot
+- **v0.4.0** — Real Keplerian orbit (moving beyond a mere sketch), public API
+- **v1.0.0** — Consolidation: comprehensive testing and review by industry experts
+
+**Deliberately excluded from the roadmap:** no proprietary risk scores, no operational alert functions, and no recalculation of impact probabilities—BEACON remains a transparent visualization client, not an alternative to official systems.
+
 ## Contributing
 
 See [CONTRIBUTING.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CODE_OF_CONDUCT.md).

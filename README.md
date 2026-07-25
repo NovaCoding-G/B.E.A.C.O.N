@@ -100,7 +100,7 @@ Open <http://localhost:3000>, or skip setup: [live demo](https://novabeacon.verc
 
 **Implemented:** cross-source retrieval (JPL CAD/Sentry + ESA NEOCC), per-field thresholds, object comparison view, methodology page + raw metrics endpoint.
 
-**Planned:** third independent source (NEODyS/Clomon2), persistent cache, historical tracking of value evolution.
+**Planned:** third independent source (NEODyS/Clomon2), persistent cache, historical tracking of value evolution,UI redesign.
 
 **Future research:** full Keplerian orbit rendering, public API for reconciled data, independent review of methodology by orbit-determination practitioners.
 

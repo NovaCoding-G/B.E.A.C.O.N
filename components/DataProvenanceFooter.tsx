@@ -52,6 +52,12 @@ export function DataProvenanceFooter({ meta }: DataProvenanceFooterProps) {
                 <span className="mx-1.5 opacity-40">·</span>
                 <span className="num">{meta.stats.totalFieldDivergences}</span>{" "}
                 field flags
+                <span className="mx-1.5 opacity-40">·</span>
+                CA window{" "}
+                <span className="num">
+                  {meta.comparisonWindow.start}→{meta.comparisonWindow.end}
+                </span>{" "}
+                ({meta.comparisonWindow.days}d)
               </div>
             </div>
 

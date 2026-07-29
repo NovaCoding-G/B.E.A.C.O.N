@@ -1,13 +1,15 @@
-import type {
-  EsaCloseApproach,
-  EsaRiskEntry,
-  JplCloseApproach,
-  JplSentryEntry,
-  ReconcileResult,
-  ReconcileStats,
-  ReconcileView,
-  ReconciledObject,
-  SourceFetchResult,
+import {
+  CLOSE_APPROACH_HORIZON_DAYS,
+  type ComparisonWindow,
+  type EsaCloseApproach,
+  type EsaRiskEntry,
+  type JplCloseApproach,
+  type JplSentryEntry,
+  type ReconcileResult,
+  type ReconcileStats,
+  type ReconcileView,
+  type ReconciledObject,
+  type SourceFetchResult,
 } from "@/lib/types";
 
 /** Per-field divergence thresholds (see /methodology). */
@@ -120,6 +122,38 @@ export function approachDateKey(date: string): string | null {
   }
 
   return null;
+}
+
+function utcDateOnly(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addUtcDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return utcDateOnly(d);
+}
+
+/** Inclusive shared encounter window used for JPL CAD and ESA close approaches. */
+export function buildComparisonWindow(
+  referenceDate: Date = new Date(),
+): ComparisonWindow {
+  const start = utcDateOnly(referenceDate);
+  return {
+    start,
+    end: addUtcDays(start, CLOSE_APPROACH_HORIZON_DAYS),
+    days: CLOSE_APPROACH_HORIZON_DAYS,
+  };
+}
+
+/** True when the approach calendar day falls inside the inclusive comparison window. */
+export function isWithinComparisonWindow(
+  date: string,
+  window: ComparisonWindow,
+): boolean {
+  const key = approachDateKey(date);
+  if (!key) return false;
+  return key >= window.start && key <= window.end;
 }
 
 function relativeExceeds(
@@ -329,6 +363,8 @@ export interface ReconcileInput {
     "jpl-sentry": SourceFetchResult;
     "esa-neocc": SourceFetchResult;
   };
+  /** ISO timestamp or YYYY-MM-DD; defaults to now (for tests / stable windows). */
+  referenceDate?: string;
 }
 
 export function computeReconcileStats(objects: ReconciledObject[]): ReconcileStats {
@@ -370,6 +406,17 @@ export function filterReconciledObjects(
 }
 
 export function reconcileSources(input: ReconcileInput): ReconcileResult {
+  const comparisonWindow = buildComparisonWindow(
+    input.referenceDate ? new Date(input.referenceDate) : new Date(),
+  );
+
+  const jplCad = input.jplCad.filter((ca) =>
+    isWithinComparisonWindow(ca.closeApproachDate, comparisonWindow),
+  );
+  const esaClose = input.esaClose.filter((ca) =>
+    isWithinComparisonWindow(ca.date, comparisonWindow),
+  );
+
   const map = new Map<
     string,
     {
@@ -394,7 +441,7 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     map.set(key, existing);
   };
 
-  for (const ca of input.jplCad) {
+  for (const ca of jplCad) {
     register(ca.designation, (e) => {
       e.jplCad = ca;
     });
@@ -412,7 +459,7 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     });
   }
 
-  for (const entry of input.esaClose) {
+  for (const entry of esaClose) {
     register(entry.designation, (e) => {
       e.esaClose = entry;
     });
@@ -468,6 +515,7 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
       sourceStatus: input.sourceStatus,
       totalObjects: objects.length,
       stats,
+      comparisonWindow,
     },
   };
 }

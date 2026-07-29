@@ -7,6 +7,8 @@ import {
   approachDateKey,
   impactProbabilitiesDiverge,
   palermoScalesDiverge,
+  buildComparisonWindow,
+  isWithinComparisonWindow,
   DIVERGENCE_THRESHOLDS,
 } from "@/lib/reconcile";
 import { mapCadRow } from "@/lib/sources/jpl-cad";
@@ -15,6 +17,13 @@ import {
   parseEsaRiskList,
   parseEsaObjectColumn,
 } from "@/lib/sources/esa-neocc";
+import {
+  CLOSE_APPROACH_HORIZON_DAYS,
+  SOURCE_URLS,
+} from "@/lib/types";
+
+/** Stable reference so close-approach fixtures stay inside the shared window. */
+const REF_DATE = "2026-01-01T12:00:00.000Z";
 
 const baseStatus = {
   "jpl-cad": {
@@ -217,11 +226,13 @@ describe("reconcileSources", () => {
       ],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: "2056-01-01T12:00:00.000Z",
     });
 
     expect(result.objects).toHaveLength(1);
     expect(result.objects[0].normalizedKey).toBe("1979XB");
     expect(result.objects[0].crossSourceMatch).toBe(true);
+    expect(result.objects[0].sources.jplCad.present).toBe(true);
     expect(result.objects[0].divergences).toHaveLength(0);
     expect(result.objects[0].totalFieldDivergences).toBe(0);
     expect(result.objects[0].significantDivergences).toBe(0);
@@ -242,6 +253,7 @@ describe("reconcileSources", () => {
       esaRisk: [],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(result.objects).toHaveLength(1);
@@ -268,6 +280,7 @@ describe("reconcileSources", () => {
           error: "Fonte ESA temporaneamente non disponibile",
         },
       },
+      referenceDate: REF_DATE,
     });
 
     expect(result.objects).toHaveLength(1);
@@ -281,6 +294,7 @@ describe("reconcileSources", () => {
       esaRisk: [{ designation: "2000SG344", torinoScaleMax: 0 }],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(result.objects).toHaveLength(1);
@@ -306,6 +320,7 @@ describe("reconcileSources", () => {
         },
       ],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(
@@ -328,6 +343,7 @@ describe("reconcileSources", () => {
         { designation: "2026 OU", date: "2026-07-24", missDistanceAu: 0.024 },
       ],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(
@@ -355,6 +371,7 @@ describe("reconcileSources", () => {
       ],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(filterReconciledObjects(result.objects, "multi")).toHaveLength(1);
@@ -398,6 +415,7 @@ describe("calibrated divergences — real observed cases", () => {
         },
       ],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     const obj = result.objects[0];
@@ -422,6 +440,7 @@ describe("calibrated divergences — real observed cases", () => {
       esaRisk: [{ designation: "2007EK", palermoScaleCumulative: -10.69 }],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     const obj = result.objects[0];
@@ -449,6 +468,7 @@ describe("calibrated divergences — real observed cases", () => {
       ],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(
@@ -466,6 +486,7 @@ describe("calibrated divergences — real observed cases", () => {
       esaRisk: [{ designation: "2026OB1", palermoScaleCumulative: -7.14 }],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(
@@ -497,6 +518,7 @@ describe("calibrated divergences — real observed cases", () => {
       ],
       esaClose: [],
       sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
     });
 
     expect(result.objects).toHaveLength(1);
@@ -540,6 +562,7 @@ describe("calibrated divergences — real observed cases", () => {
           },
         ],
         sourceStatus: baseStatus,
+        referenceDate: REF_DATE,
       });
 
       expect(result.objects).toHaveLength(1);
@@ -548,5 +571,120 @@ describe("calibrated divergences — real observed cases", () => {
       expect(result.objects[0].sources.jplCad.present).toBe(true);
       expect(result.objects[0].sources.esaNeocc.present).toBe(true);
     }
+  });
+});
+
+describe("shared close-approach comparison window", () => {
+  it("exposes the effective comparison window in reconciliation metadata", () => {
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: "2026-07-28T00:00:00.000Z",
+    });
+
+    expect(result.meta.comparisonWindow).toEqual({
+      start: "2026-07-28",
+      end: "2027-07-28",
+      days: CLOSE_APPROACH_HORIZON_DAYS,
+    });
+    expect(CLOSE_APPROACH_HORIZON_DAYS).toBe(365);
+    expect(SOURCE_URLS["jpl-cad"]).toContain(
+      `date-max=%2B${CLOSE_APPROACH_HORIZON_DAYS}`,
+    );
+    expect(SOURCE_URLS["jpl-cad"]).not.toContain("date-max=%2B60");
+  });
+
+  it("includes fixtures inside the horizon and excludes those outside", () => {
+    const window = buildComparisonWindow(new Date("2026-07-28T00:00:00.000Z"));
+    expect(isWithinComparisonWindow("2026-07-28", window)).toBe(true);
+    expect(isWithinComparisonWindow("2026-Sep-27 20:54", window)).toBe(true); // day 61
+    expect(isWithinComparisonWindow("2027-07-28", window)).toBe(true);
+    expect(isWithinComparisonWindow("2027-07-29", window)).toBe(false);
+    expect(isWithinComparisonWindow("2026-07-27", window)).toBe(false);
+  });
+
+  it("joins an ESA encounter at day 61 when JPL CAD also has it (not ESA-only)", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "2018 SP2",
+          closeApproachDate: "2026-Sep-30 20:54",
+          distanceAu: 0.04,
+          velocityRelativeKms: 12,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2018SP2",
+          date: "2026-09-30",
+          missDistanceAu: 0.04,
+          relativeVelocityKms: 12,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: "2026-07-28T00:00:00.000Z",
+    });
+
+    expect(result.objects).toHaveLength(1);
+    const obj = result.objects[0];
+    expect(obj.crossSourceMatch).toBe(true);
+    expect(obj.sources.jplCad.present).toBe(true);
+    expect(obj.sources.esaNeocc.present).toBe(true);
+    expect(obj.sourceCoverage).toBe(2);
+  });
+
+  it("does not treat an ESA encounter beyond the horizon as ESA-only coverage", () => {
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2099 ZZ99",
+          date: "2027-08-15",
+          missDistanceAu: 0.03,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: "2026-07-28T00:00:00.000Z",
+    });
+
+    expect(result.objects).toHaveLength(0);
+    expect(result.meta.comparisonWindow.end).toBe("2027-07-28");
+  });
+
+  it("applies the same inclusive date boundaries to JPL CAD and ESA close approaches", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "INSIDE",
+          closeApproachDate: "2027-Jul-28",
+          distanceAu: 0.02,
+        },
+        {
+          designation: "OUTSIDE",
+          closeApproachDate: "2027-Jul-29",
+          distanceAu: 0.02,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        { designation: "INSIDE", date: "2027-07-28", missDistanceAu: 0.02 },
+        { designation: "OUTSIDE", date: "2027-07-29", missDistanceAu: 0.02 },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: "2026-07-28T00:00:00.000Z",
+    });
+
+    expect(result.objects).toHaveLength(1);
+    expect(result.objects[0].normalizedKey).toBe("INSIDE");
+    expect(result.objects[0].sources.jplCad.present).toBe(true);
+    expect(result.objects[0].sources.esaNeocc.present).toBe(true);
   });
 });

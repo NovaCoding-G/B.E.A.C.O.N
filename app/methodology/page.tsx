@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MissionHeader } from "@/components/MissionHeader";
 import { DataProvenanceFooter } from "@/components/DataProvenanceFooter";
 import { DIVERGENCE_THRESHOLDS, FIELD_THRESHOLD_INFO } from "@/lib/reconcile";
+import { CLOSE_APPROACH_HORIZON_DAYS } from "@/lib/types";
 
 export const metadata = {
   title: "Methodology — BEACON",
@@ -20,12 +21,19 @@ export default function MethodologyPage() {
               <h2 className="panel-title">Matching</h2>
             </div>
           </div>
-          <div className="px-4 py-4 text-sm text-[var(--text-muted)] leading-relaxed">
+          <div className="px-4 py-4 text-sm text-[var(--text-muted)] leading-relaxed space-y-3">
             <p>
               Key = normalized IAU designation.{" "}
               <span className="num">1979 XB</span> and{" "}
               <span className="num">1979XB</span> are the same object. We keep
               each source’s raw values; no averaging.
+            </p>
+            <p>
+              Close-approach comparisons use a shared inclusive window of{" "}
+              <span className="num">{CLOSE_APPROACH_HORIZON_DAYS}</span> days
+              from the reconcile reference date. JPL CAD is requested with the
+              same horizon; ESA upcoming encounters outside that window are
+              excluded from coverage and field comparisons.
             </p>
           </div>
         </section>

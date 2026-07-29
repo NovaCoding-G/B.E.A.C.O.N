@@ -164,6 +164,16 @@ export type ReconcileStats = z.infer<typeof ReconcileStatsSchema>;
 
 export type ReconcileView = "all" | "multi" | "divergent" | "risk";
 
+/** Shared JPL CAD / ESA close-approach comparison horizon (inclusive days from now). */
+export const CLOSE_APPROACH_HORIZON_DAYS = 365;
+
+export const ComparisonWindowSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+  days: z.number(),
+});
+export type ComparisonWindow = z.infer<typeof ComparisonWindowSchema>;
+
 export const ReconcileResultSchema = z.object({
   objects: z.array(ReconciledObjectSchema),
   meta: z.object({
@@ -171,13 +181,13 @@ export const ReconcileResultSchema = z.object({
     sourceStatus: z.record(SourceId, SourceFetchResultSchema),
     totalObjects: z.number(),
     stats: ReconcileStatsSchema,
+    comparisonWindow: ComparisonWindowSchema,
   }),
 });
 export type ReconcileResult = z.infer<typeof ReconcileResultSchema>;
 
 export const SOURCE_URLS = {
-  "jpl-cad":
-    "https://ssd-api.jpl.nasa.gov/cad.api?dist-max=0.05&date-min=now&date-max=%2B60",
+  "jpl-cad": `https://ssd-api.jpl.nasa.gov/cad.api?dist-max=0.05&date-min=now&date-max=%2B${CLOSE_APPROACH_HORIZON_DAYS}`,
   "jpl-sentry": "https://ssd-api.jpl.nasa.gov/sentry.api",
   "esa-neocc-risk":
     "https://neo.ssa.esa.int/PSDB-portlet/download?file=esa_risk_list",

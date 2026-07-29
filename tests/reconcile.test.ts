@@ -148,8 +148,12 @@ AAAAAAAAAAAA AAAAAAAAAAAAAAAA | NNNN |    A    | YYYY-MM-DD HH:MM | EEEEEEEE | N
 
   it("parses object column variants", () => {
     expect(parseEsaObjectColumn("101955 Bennu")).toEqual({
-      designation: "101955 Bennu",
+      designation: "101955",
       name: "Bennu",
+    });
+    expect(parseEsaObjectColumn("443104 2013XK22")).toEqual({
+      designation: "443104",
+      name: "2013XK22",
     });
     expect(parseEsaObjectColumn("2023VD3")).toEqual({
       designation: "2023VD3",
@@ -470,5 +474,79 @@ describe("calibrated divergences — real observed cases", () => {
       ),
     ).toBe(true);
     expect(result.objects[0].significantDivergences).toBe(1);
+  });
+
+  it("joins numbered ESA risk (443104 2013XK22) to JPL and reports IP + Palermo Δ", () => {
+    const esaParsed = parseEsaObjectColumn("443104 2013XK22");
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [
+        {
+          designation: "443104",
+          cumulativeImpactProbability: 4.456e-6,
+          palermoScaleCumulative: -5.28,
+        },
+      ],
+      esaRisk: [
+        {
+          designation: esaParsed.designation,
+          name: esaParsed.name,
+          cumulativeImpactProbability: 1.18e-6,
+          palermoScaleCumulative: -5.85,
+        },
+      ],
+      esaClose: [],
+      sourceStatus: baseStatus,
+    });
+
+    expect(result.objects).toHaveLength(1);
+    const obj = result.objects[0];
+    expect(obj.normalizedKey).toBe("443104");
+    expect(obj.crossSourceMatch).toBe(true);
+    expect(obj.displayName).toBe("2013XK22");
+    const fields = obj.divergences.map((d) => d.field);
+    expect(fields).toContain("cumulativeImpactProbability");
+    expect(fields).toContain("palermoScaleCumulative");
+    expect(obj.significantDivergences).toBe(2);
+  });
+
+  it("joins numbered CAD examples to ESA close-approach records", () => {
+    const numbered = [
+      { id: "173561", esaCol: "173561 2000YV137" },
+      { id: "523609", esaCol: "523609 2008EY5" },
+      { id: "221455", esaCol: "221455 2005YZ128" },
+    ];
+
+    for (const { id, esaCol } of numbered) {
+      const esaParsed = parseEsaObjectColumn(esaCol);
+      const result = reconcileSources({
+        jplCad: [
+          {
+            designation: id,
+            closeApproachDate: "2026-Aug-01 12:00",
+            distanceAu: 0.05,
+            velocityRelativeKms: 10,
+          },
+        ],
+        jplSentry: [],
+        esaRisk: [],
+        esaClose: [
+          {
+            designation: esaParsed.designation,
+            name: esaParsed.name,
+            date: "2026-08-01",
+            missDistanceAu: 0.05,
+            relativeVelocityKms: 10,
+          },
+        ],
+        sourceStatus: baseStatus,
+      });
+
+      expect(result.objects).toHaveLength(1);
+      expect(result.objects[0].normalizedKey).toBe(id);
+      expect(result.objects[0].crossSourceMatch).toBe(true);
+      expect(result.objects[0].sources.jplCad.present).toBe(true);
+      expect(result.objects[0].sources.esaNeocc.present).toBe(true);
+    }
   });
 });

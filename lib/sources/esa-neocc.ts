@@ -38,11 +38,11 @@ export function parseEsaObjectColumn(objectCol: string): {
   const trimmed = objectCol.trim();
   if (!trimmed) return { designation: "" };
 
-  // Numbered object: "101955 Bennu" or provisional "2023VD3"
+  // Numbered object: permanent number is the matching key; remainder is display name/alias
   const numberedMatch = trimmed.match(/^(\d+)\s+(.+)$/);
   if (numberedMatch) {
     return {
-      designation: `${numberedMatch[1]} ${numberedMatch[2]}`,
+      designation: numberedMatch[1],
       name: numberedMatch[2],
     };
   }

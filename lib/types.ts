@@ -106,14 +106,38 @@ export const EsaCloseApproachSchema = z.object({
 export type EsaCloseApproach = z.infer<typeof EsaCloseApproachSchema>;
 
 /** Fetch result wrapper for any source */
+export const FeedComponentStatusSchema = z.object({
+  success: z.boolean(),
+  error: z.string().optional(),
+  fetchedAt: z.string().optional(),
+  url: z.string().optional(),
+});
+export type FeedComponentStatus = z.infer<typeof FeedComponentStatusSchema>;
+
 export const SourceFetchResultSchema = z.object({
   source: SourceId,
   fetchedAt: z.string(),
   success: z.boolean(),
+  /** True when some but not all ESA sub-feeds succeeded. */
+  partial: z.boolean().optional(),
   error: z.string().optional(),
   url: z.string(),
+  components: z
+    .object({
+      risk: FeedComponentStatusSchema,
+      close: FeedComponentStatusSchema,
+    })
+    .optional(),
 });
 export type SourceFetchResult = z.infer<typeof SourceFetchResultSchema>;
+
+export const FeedStatusSchema = z.object({
+  "jpl-cad": FeedComponentStatusSchema,
+  "jpl-sentry": FeedComponentStatusSchema,
+  "esa-risk": FeedComponentStatusSchema,
+  "esa-close": FeedComponentStatusSchema,
+});
+export type FeedStatus = z.infer<typeof FeedStatusSchema>;
 
 /** Per-source presence and values for reconciliation */
 export const SourcePresenceSchema = z.object({
@@ -182,6 +206,7 @@ export const ReconcileResultSchema = z.object({
   meta: z.object({
     reconciledAt: z.string(),
     sourceStatus: z.record(SourceId, SourceFetchResultSchema),
+    feedStatus: FeedStatusSchema,
     totalObjects: z.number(),
     stats: ReconcileStatsSchema,
     comparisonWindow: ComparisonWindowSchema,

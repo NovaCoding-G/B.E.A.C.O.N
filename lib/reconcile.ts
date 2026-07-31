@@ -3,6 +3,7 @@ import {
   type ComparisonWindow,
   type EsaCloseApproach,
   type EsaRiskEntry,
+  type FeedStatus,
   type JplCloseApproach,
   type JplSentryEntry,
   type ReconcileResult,
@@ -367,6 +368,57 @@ export interface ReconcileInput {
   referenceDate?: string;
 }
 
+/** Per-feed health for dashboard alerts (CAD, Sentry, ESA risk, ESA close). */
+export function buildFeedStatus(sourceStatus: {
+  "jpl-cad": SourceFetchResult;
+  "jpl-sentry": SourceFetchResult;
+  "esa-neocc": SourceFetchResult;
+}): FeedStatus {
+  const esa = sourceStatus["esa-neocc"];
+  const risk = esa.components?.risk ?? {
+    success: esa.success,
+    error: esa.error,
+    fetchedAt: esa.fetchedAt,
+    url: esa.url,
+  };
+  const close = esa.components?.close ?? {
+    success: esa.success,
+    error: esa.error,
+    fetchedAt: esa.fetchedAt,
+    url: esa.url,
+  };
+
+  return {
+    "jpl-cad": {
+      success: sourceStatus["jpl-cad"].success,
+      error: sourceStatus["jpl-cad"].error,
+      fetchedAt: sourceStatus["jpl-cad"].fetchedAt,
+      url: sourceStatus["jpl-cad"].url,
+    },
+    "jpl-sentry": {
+      success: sourceStatus["jpl-sentry"].success,
+      error: sourceStatus["jpl-sentry"].error,
+      fetchedAt: sourceStatus["jpl-sentry"].fetchedAt,
+      url: sourceStatus["jpl-sentry"].url,
+    },
+    "esa-risk": risk,
+    "esa-close": close,
+  };
+}
+
+export const FEED_STATUS_LABELS: Record<keyof FeedStatus, string> = {
+  "jpl-cad": "JPL CAD",
+  "jpl-sentry": "JPL Sentry",
+  "esa-risk": "ESA risk list",
+  "esa-close": "ESA close approaches",
+};
+
+export function listFailedFeeds(feedStatus: FeedStatus): (keyof FeedStatus)[] {
+  return (Object.keys(feedStatus) as (keyof FeedStatus)[]).filter(
+    (id) => !feedStatus[id].success,
+  );
+}
+
 /** On Sentry and/or ESA risk list — shared by risk filter and riskListed count. */
 export function isOnRiskList(object: ReconciledObject): boolean {
   return object.sources.jplSentry.present || !!object.sources.esaNeocc.risk;
@@ -517,6 +569,7 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     meta: {
       reconciledAt: new Date().toISOString(),
       sourceStatus: input.sourceStatus,
+      feedStatus: buildFeedStatus(input.sourceStatus),
       totalObjects: objects.length,
       stats,
       comparisonWindow,

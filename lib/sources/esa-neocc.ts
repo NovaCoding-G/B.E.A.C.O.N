@@ -297,21 +297,47 @@ export async function fetchEsaNeocc(): Promise<{
     fetchEsaCloseApproaches(),
   ]);
 
-  const success = riskResult.meta.success || closeResult.meta.success;
-  const error =
-    !riskResult.meta.success && !closeResult.meta.success
-      ? "ESA source temporarily unavailable"
-      : undefined;
-
   return {
     risk: riskResult.data,
     closeApproaches: closeResult.data,
-    meta: {
-      source: "esa-neocc",
-      fetchedAt: new Date().toISOString(),
-      success,
-      error,
-      url: RISK_URL,
+    meta: aggregateEsaFetchMeta(riskResult.meta, closeResult.meta),
+  };
+}
+
+/** Aggregate ESA risk + close metas (success only when both feeds succeed). */
+export function aggregateEsaFetchMeta(
+  riskMeta: SourceFetchResult,
+  closeMeta: SourceFetchResult,
+): SourceFetchResult {
+  const success = riskMeta.success && closeMeta.success;
+  const partial = !success && (riskMeta.success || closeMeta.success);
+  const failures: string[] = [];
+  if (!riskMeta.success) {
+    failures.push(`ESA risk list: ${riskMeta.error ?? "unavailable"}`);
+  }
+  if (!closeMeta.success) {
+    failures.push(`ESA close approaches: ${closeMeta.error ?? "unavailable"}`);
+  }
+  return {
+    source: "esa-neocc",
+    fetchedAt: new Date().toISOString(),
+    success,
+    partial: partial || undefined,
+    error: failures.length > 0 ? failures.join("; ") : undefined,
+    url: riskMeta.url || RISK_URL,
+    components: {
+      risk: {
+        success: riskMeta.success,
+        error: riskMeta.error,
+        fetchedAt: riskMeta.fetchedAt,
+        url: riskMeta.url,
+      },
+      close: {
+        success: closeMeta.success,
+        error: closeMeta.error,
+        fetchedAt: closeMeta.fetchedAt,
+        url: closeMeta.url,
+      },
     },
   };
 }

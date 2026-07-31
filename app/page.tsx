@@ -1,6 +1,8 @@
 import { getReconcileData } from "@/lib/get-reconcile-data";
 import {
+  FEED_STATUS_LABELS,
   filterReconciledObjects,
+  listFailedFeeds,
   parseReconcileView,
 } from "@/lib/reconcile";
 import { ObjectTable } from "@/components/ObjectTable";
@@ -8,7 +10,7 @@ import { DataProvenanceFooter } from "@/components/DataProvenanceFooter";
 import { ReconcileViewTabs } from "@/components/ReconcileViewTabs";
 import { DivergenceSummary } from "@/components/DivergenceSummary";
 import { MissionHeader } from "@/components/MissionHeader";
-import type { ReconcileView } from "@/lib/types";
+import type { FeedStatus, ReconcileView } from "@/lib/types";
 
 export const revalidate = 300;
 
@@ -80,16 +82,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               <StatCell label="Sentry+ESA" value={stats.sentryAndEsa} />
             </section>
 
-            {!data.meta.sourceStatus["esa-neocc"].success && (
-              <div className="panel p-4 border-l-2 border-[var(--accent-amber)]">
-                <p className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--accent-amber)] mb-1">
-                  ESA unavailable
-                </p>
-                <p className="text-sm text-[var(--text-muted)]">
-                  Using JPL only for now.
-                </p>
-              </div>
-            )}
+            <SourceHealthAlerts feedStatus={data.meta.feedStatus} />
 
             {view === "all" && stats.significantDivergences > 0 && (
               <DivergenceSummary objects={data.objects} />
@@ -118,6 +111,34 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {data && <DataProvenanceFooter meta={data.meta} />}
     </>
+  );
+}
+
+function SourceHealthAlerts({ feedStatus }: { feedStatus: FeedStatus }) {
+  const failed = listFailedFeeds(feedStatus);
+  if (failed.length === 0) return null;
+
+  const allDown = failed.length === Object.keys(feedStatus).length;
+  const title = allDown ? "All sources unavailable" : "Incomplete data";
+  const detail = allDown
+    ? "Every upstream feed failed. Counts below are empty, not a healthy reconciliation."
+    : "Some feeds failed. Object counts and divergences may be incomplete.";
+
+  return (
+    <div className="panel p-4 border-l-2 border-[var(--accent-amber)]">
+      <p className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--accent-amber)] mb-1">
+        {title}
+      </p>
+      <p className="text-sm text-[var(--text-muted)]">{detail}</p>
+      <ul className="mt-2 space-y-1 text-xs text-[var(--text-muted)]">
+        {failed.map((id) => (
+          <li key={id} className="num">
+            {FEED_STATUS_LABELS[id]}
+            {feedStatus[id].error ? ` — ${feedStatus[id].error}` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -68,9 +68,17 @@ export function DataProvenanceFooter({ meta }: DataProvenanceFooterProps) {
                   <div key={key} className="flex items-start gap-2 min-w-0">
                     <span
                       className={`status-dot mt-1.5 ${
-                        status.success ? "status-dot-live" : "status-dot-warn"
+                        status.success
+                          ? "status-dot-live"
+                          : "status-dot-warn"
                       }`}
-                      title={status.success ? "OK" : (status.error ?? "Error")}
+                      title={
+                        status.success
+                          ? "OK"
+                          : status.partial
+                            ? (status.error ?? "Partial")
+                            : (status.error ?? "Error")
+                      }
                     />
                     <div className="min-w-0">
                       <a
@@ -84,8 +92,26 @@ export function DataProvenanceFooter({ meta }: DataProvenanceFooterProps) {
                       <div className="num text-[0.65rem] text-[var(--text-muted)] truncate">
                         {status.success
                           ? formatTimestamp(status.fetchedAt)
-                          : (status.error ?? "unavailable")}
+                          : status.partial
+                            ? `Partial — ${status.error ?? "one ESA feed failed"}`
+                            : (status.error ?? "unavailable")}
                       </div>
+                      {key === "esa-neocc" && status.components && (
+                        <div className="num text-[0.6rem] text-[var(--text-muted)] mt-0.5 space-y-0.5">
+                          <div>
+                            Risk:{" "}
+                            {status.components.risk.success
+                              ? "ok"
+                              : (status.components.risk.error ?? "failed")}
+                          </div>
+                          <div>
+                            Close:{" "}
+                            {status.components.close.success
+                              ? "ok"
+                              : (status.components.close.error ?? "failed")}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

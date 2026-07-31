@@ -377,6 +377,59 @@ describe("reconcileSources", () => {
     expect(filterReconciledObjects(result.objects, "multi")).toHaveLength(1);
     expect(filterReconciledObjects(result.objects, "divergent")).toHaveLength(1);
   });
+
+  it("riskListed matches view=risk filter (union of Sentry and ESA risk)", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "CLOSE ONLY",
+          closeApproachDate: "2026-Jul-15",
+          distanceAu: 0.04,
+        },
+      ],
+      jplSentry: [
+        { designation: "JPL ONLY", torinoScaleMax: 0 },
+        { designation: "BOTH", torinoScaleMax: 0 },
+        {
+          designation: "SENTRY+ESA CLOSE",
+          torinoScaleMax: 0,
+        },
+      ],
+      esaRisk: [
+        { designation: "ESA ONLY", torinoScaleMax: 0 },
+        { designation: "BOTH", torinoScaleMax: 0 },
+      ],
+      esaClose: [
+        {
+          designation: "SENTRY+ESA CLOSE",
+          date: "2026-07-15",
+          missDistanceAu: 0.04,
+        },
+        {
+          designation: "CLOSE ONLY",
+          date: "2026-07-15",
+          missDistanceAu: 0.03,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const riskRows = filterReconciledObjects(result.objects, "risk");
+    expect(result.meta.stats.riskListed).toBe(riskRows.length);
+    expect(result.meta.stats.riskListed).toBe(4);
+
+    const keys = riskRows.map((o) => o.normalizedKey).sort();
+    expect(keys).toEqual(
+      ["BOTH", "ESAONLY", "JPLONLY", "SENTRY+ESACLOSE"].sort(),
+    );
+
+    // Intersection metric stays distinct: BOTH + SENTRY+ESA CLOSE (any ESA)
+    expect(result.meta.stats.sentryAndEsa).toBe(2);
+
+    // Close-only (no Sentry, no ESA risk) is excluded from the risk tab
+    expect(keys).not.toContain("CLOSEONLY");
+  });
 });
 
 describe("calibrated divergences — real observed cases", () => {

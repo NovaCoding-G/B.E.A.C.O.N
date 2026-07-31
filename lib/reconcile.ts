@@ -367,6 +367,11 @@ export interface ReconcileInput {
   referenceDate?: string;
 }
 
+/** On Sentry and/or ESA risk list — shared by risk filter and riskListed count. */
+export function isOnRiskList(object: ReconciledObject): boolean {
+  return object.sources.jplSentry.present || !!object.sources.esaNeocc.risk;
+}
+
 export function computeReconcileStats(objects: ReconciledObject[]): ReconcileStats {
   const totalFieldDivergences = objects.reduce(
     (sum, o) => sum + o.totalFieldDivergences,
@@ -384,6 +389,7 @@ export function computeReconcileStats(objects: ReconciledObject[]): ReconcileSta
     sentryAndEsa: objects.filter(
       (o) => o.sources.jplSentry.present && o.sources.esaNeocc.present,
     ).length,
+    riskListed: objects.filter(isOnRiskList).length,
   };
 }
 
@@ -397,9 +403,7 @@ export function filterReconciledObjects(
     case "divergent":
       return objects.filter((o) => o.significantDivergences > 0);
     case "risk":
-      return objects.filter(
-        (o) => o.sources.jplSentry.present || o.sources.esaNeocc.risk,
-      );
+      return objects.filter(isOnRiskList);
     default:
       return objects;
   }

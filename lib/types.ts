@@ -158,7 +158,10 @@ export const ReconcileStatsSchema = z.object({
   multiSource: z.number(),
   totalFieldDivergences: z.number(),
   significantDivergences: z.number(),
+  /** Sentry ∩ any ESA presence (risk or close). Dashboard intersection metric. */
   sentryAndEsa: z.number(),
+  /** Same predicate as view=risk: Sentry OR ESA risk list. */
+  riskListed: z.number(),
 });
 export type ReconcileStats = z.infer<typeof ReconcileStatsSchema>;
 

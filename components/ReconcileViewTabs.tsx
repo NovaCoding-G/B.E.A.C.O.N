@@ -9,7 +9,7 @@ const VIEWS: {
   { id: "all", label: "All", statKey: "total" },
   { id: "multi", label: "Multi-source", statKey: "multiSource" },
   { id: "divergent", label: "Risk Δ", statKey: "significantDivergences" },
-  { id: "risk", label: "On risk list", statKey: "sentryAndEsa" },
+  { id: "risk", label: "On risk list", statKey: "riskListed" },
 ];
 
 interface ReconcileViewTabsProps {

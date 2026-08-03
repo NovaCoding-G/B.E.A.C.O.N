@@ -22,6 +22,9 @@ export const DIVERGENCE_THRESHOLDS = {
   palermoAbsolute: 0.5,
 } as const;
 
+/** ESA NEOCC close-approach relative velocity is published as DD.D km/s. */
+export const ESA_RELATIVE_VELOCITY_DECIMALS = 1;
+
 /** Short labels for comparison-panel tooltips. */
 export const FIELD_THRESHOLD_INFO: Record<
   string,
@@ -33,8 +36,9 @@ export const FIELD_THRESHOLD_INFO: Record<
     category: "orbital",
   },
   relativeVelocity: {
-    short: "1% rel",
-    explanation: "Relative speed; flag above 1%.",
+    short: "1% rel (ESA 0.1 km/s)",
+    explanation:
+      "Relative speed; round JPL to ESA's 0.1 km/s reporting precision, then flag above 1%. Raw values unchanged.",
     category: "orbital",
   },
   closeApproachDate: {
@@ -167,6 +171,28 @@ function relativeExceeds(
   const maxVal = Math.max(Math.abs(a), Math.abs(b));
   if (maxVal === 0) return false;
   return Math.abs(a - b) / maxVal > relativeTolerance;
+}
+
+export function roundToDecimals(value: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+/**
+ * Relative-velocity divergence: compare after rounding JPL to ESA's DD.D km/s
+ * precision so quantization alone does not flag a disagreement.
+ */
+export function relativeVelocitiesDiverge(
+  jpl: number | undefined,
+  esa: number | undefined,
+  relativeTolerance: number = DIVERGENCE_THRESHOLDS.relativeVelocityRelative,
+): boolean {
+  if (jpl === undefined || esa === undefined) return false;
+  const jplAtEsaPrecision = roundToDecimals(
+    jpl,
+    ESA_RELATIVE_VELOCITY_DECIMALS,
+  );
+  return relativeExceeds(jplAtEsaPrecision, esa, relativeTolerance);
 }
 
 export function impactProbabilitiesDiverge(
@@ -340,13 +366,7 @@ function buildReconciledObject(
 
   const jplVel = opts.jplCad?.velocityRelativeKms;
   const esaVel = opts.esaClose?.relativeVelocityKms;
-  if (
-    relativeExceeds(
-      jplVel,
-      esaVel,
-      DIVERGENCE_THRESHOLDS.relativeVelocityRelative,
-    )
-  ) {
+  if (relativeVelocitiesDiverge(jplVel, esaVel)) {
     addDivergence(divergences, "relativeVelocity", {
       "jpl-cad": jplVel ?? null,
       "esa-neocc": esaVel ?? null,

@@ -45,6 +45,12 @@ export default function MethodologyPage() {
               — they do not create a separate risk divergence and do not
               suppress the cumulative thresholds.
             </p>
+            <p>
+              Relative velocity: ESA publishes{" "}
+              <span className="num">DD.D</span> km/s. Before the{" "}
+              <span className="num">1%</span> check, JPL is rounded to that
+              0.1 km/s precision. Displayed source values stay raw.
+            </p>
           </div>
         </section>
 

@@ -7,6 +7,8 @@ import {
   approachDateKey,
   impactProbabilitiesDiverge,
   palermoScalesDiverge,
+  relativeVelocitiesDiverge,
+  roundToDecimals,
   buildComparisonWindow,
   isWithinComparisonWindow,
   normalizeRiskYears,
@@ -178,11 +180,21 @@ AAAAAAAAAAAA AAAAAAAAAAAAAAAA | NNNN |    A    | YYYY-MM-DD HH:MM | EEEEEEEE | N
 });
 
 describe("calibrated field thresholds (helpers)", () => {
-  it("does not flag tiny velocity-scale relative differences under 1%", () => {
-    const a = 13.54;
-    const b = 13.5;
-    const rel = Math.abs(a - b) / Math.max(a, b);
-    expect(rel).toBeLessThan(DIVERGENCE_THRESHOLDS.relativeVelocityRelative);
+  it("does not flag JPL/ESA velocity pairs that agree at ESA 0.1 km/s precision", () => {
+    // Raw relative gap ~0.3% but also rounds to the same tenth
+    expect(relativeVelocitiesDiverge(13.54, 13.5)).toBe(false);
+    // Audited false positive: 2025 SC (~1.004% raw) rounds to ESA 1.9
+    expect(relativeVelocitiesDiverge(1.91927306868757, 1.9)).toBe(false);
+    expect(roundToDecimals(1.91927306868757, 1)).toBe(1.9);
+  });
+
+  it("flags velocity when rounded tenths differ and exceed 1%", () => {
+    // 2.0 vs 1.9 → 5% after rounding
+    expect(relativeVelocitiesDiverge(1.96, 1.9)).toBe(true);
+    expect(roundToDecimals(1.96, 1)).toBe(2.0);
+    // Exact tenth match after rounding → no flag even if raw differs
+    expect(relativeVelocitiesDiverge(1.94, 1.9)).toBe(false);
+    expect(roundToDecimals(1.94, 1)).toBe(1.9);
   });
 
   it("uses ratio for impact probability, with 1e-7 floor", () => {
@@ -890,6 +902,71 @@ describe("shared close-approach comparison window", () => {
     expect(isWithinComparisonWindow("2027-07-28", window)).toBe(true);
     expect(isWithinComparisonWindow("2027-07-29", window)).toBe(false);
     expect(isWithinComparisonWindow("2026-07-27", window)).toBe(false);
+  });
+
+  it("2025 SC: does not flag velocity when JPL rounds to ESA 1.9 km/s", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "2025 SC",
+          closeApproachDate: "2026-Jul-15",
+          distanceAu: 0.05,
+          velocityRelativeKms: 1.91927306868757,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2025SC",
+          date: "2026-07-15",
+          missDistanceAu: 0.05,
+          relativeVelocityKms: 1.9,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    const obj = result.objects[0];
+    expect(
+      obj.divergences.some((d) => d.field === "relativeVelocity"),
+    ).toBe(false);
+    // Raw values preserved on the object / would be in sources if flagged
+    expect(obj.sources.jplCad.closeApproach?.velocityRelativeKms).toBe(
+      1.91927306868757,
+    );
+    expect(obj.sources.esaNeocc.closeApproach?.relativeVelocityKms).toBe(1.9);
+  });
+
+  it("flags relativeVelocity when rounded tenths disagree beyond 1%", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "VELDIFF",
+          closeApproachDate: "2026-Jul-15",
+          distanceAu: 0.05,
+          velocityRelativeKms: 1.96,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "VELDIFF",
+          date: "2026-07-15",
+          missDistanceAu: 0.05,
+          relativeVelocityKms: 1.9,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    const div = result.objects[0].divergences.find(
+      (d) => d.field === "relativeVelocity",
+    );
+    expect(div).toBeDefined();
+    expect(div?.sources["jpl-cad"]).toBe(1.96);
+    expect(div?.sources["esa-neocc"]).toBe(1.9);
   });
 
   it("joins an ESA encounter at day 61 when JPL CAD also has it (not ESA-only)", () => {

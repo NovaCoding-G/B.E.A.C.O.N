@@ -213,6 +213,7 @@ function addDivergence(
   divergences: ReconciledObject["divergences"],
   field: keyof typeof FIELD_THRESHOLD_INFO | string,
   sources: Record<string, number | string | null>,
+  notes?: string,
 ): void {
   const info = FIELD_THRESHOLD_INFO[field];
   divergences.push({
@@ -220,8 +221,40 @@ function addDivergence(
     sources,
     threshold: info?.short,
     thresholdExplanation: info?.explanation,
+    notes,
     category: info?.category ?? (RISK_FIELDS.has(field) ? "risk" : "orbital"),
   });
+}
+
+/** Normalize risk-year range strings for equality checks. */
+export function normalizeRiskYears(
+  value: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim().replace(/\s+/g, "");
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** True when both sources publish a range and they differ (informational only). */
+export function riskYearRangesDiffer(
+  jplWindow: string | undefined,
+  esaYears: string | undefined,
+): boolean {
+  const jpl = normalizeRiskYears(jplWindow);
+  const esa = normalizeRiskYears(esaYears);
+  if (jpl === undefined || esa === undefined) return false;
+  return jpl !== esa;
+}
+
+export function unequalRiskYearsNote(
+  jplWindow: string | undefined,
+  esaYears: string | undefined,
+): string | undefined {
+  if (!riskYearRangesDiffer(jplWindow, esaYears)) return undefined;
+  return (
+    `Aggregation windows differ (informational): JPL ${normalizeRiskYears(jplWindow)} ` +
+    `vs ESA ${normalizeRiskYears(esaYears)}. Cumulative threshold still applies.`
+  );
 }
 
 function buildReconciledObject(
@@ -244,22 +277,37 @@ function buildReconciledObject(
     opts.esaRisk?.name ??
     opts.esaClose?.name;
 
+  const riskYearsNote = unequalRiskYearsNote(
+    opts.jplSentry?.riskWindowYears,
+    opts.esaRisk?.riskYears,
+  );
+
   const jplIp = opts.jplSentry?.cumulativeImpactProbability;
   const esaIp = opts.esaRisk?.cumulativeImpactProbability;
   if (impactProbabilitiesDiverge(jplIp, esaIp)) {
-    addDivergence(divergences, "cumulativeImpactProbability", {
-      "jpl-sentry": jplIp ?? null,
-      "esa-neocc": esaIp ?? null,
-    });
+    addDivergence(
+      divergences,
+      "cumulativeImpactProbability",
+      {
+        "jpl-sentry": jplIp ?? null,
+        "esa-neocc": esaIp ?? null,
+      },
+      riskYearsNote,
+    );
   }
 
   const jplPs = opts.jplSentry?.palermoScaleCumulative;
   const esaPs = opts.esaRisk?.palermoScaleCumulative;
   if (palermoScalesDiverge(jplPs, esaPs)) {
-    addDivergence(divergences, "palermoScaleCumulative", {
-      "jpl-sentry": jplPs ?? null,
-      "esa-neocc": esaPs ?? null,
-    });
+    addDivergence(
+      divergences,
+      "palermoScaleCumulative",
+      {
+        "jpl-sentry": jplPs ?? null,
+        "esa-neocc": esaPs ?? null,
+      },
+      riskYearsNote,
+    );
   }
 
   const jplTorino = opts.jplSentry?.torinoScaleMax;

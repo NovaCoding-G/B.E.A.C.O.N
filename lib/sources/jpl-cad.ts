@@ -78,17 +78,22 @@ export function parseJplCadResponse(raw: unknown): JplCloseApproach[] {
   return results;
 }
 
+type CachedJplCad = {
+  data: JplCloseApproach[];
+  fetchedAt: string;
+};
+
 export async function fetchJplCloseApproaches(): Promise<{
   data: JplCloseApproach[];
   meta: SourceFetchResult;
 }> {
-  const cached = getCached<JplCloseApproach[]>(CACHE_KEYS.JPL_CAD);
+  const cached = getCached<CachedJplCad>(CACHE_KEYS.JPL_CAD);
   if (cached) {
     return {
-      data: cached,
+      data: cached.data,
       meta: {
         source: "jpl-cad",
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: cached.fetchedAt,
         success: true,
         url: CAD_URL,
       },
@@ -102,7 +107,7 @@ export async function fetchJplCloseApproaches(): Promise<{
       next: { revalidate: 900 },
     });
     const data = parseJplCadResponse(json);
-    setCached(CACHE_KEYS.JPL_CAD, data);
+    setCached(CACHE_KEYS.JPL_CAD, { data, fetchedAt });
 
     return {
       data,

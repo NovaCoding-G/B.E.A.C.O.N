@@ -48,6 +48,22 @@ describe("aggregateEsaFetchMeta", () => {
     expect(meta.success).toBe(true);
     expect(meta.partial).toBeUndefined();
     expect(meta.error).toBeUndefined();
+    expect(meta.fetchedAt).toBe("2026-01-01T00:00:00Z");
+  });
+
+  it("keeps component fetchedAt and does not mint a fresh aggregate time", () => {
+    const risk = {
+      ...okMeta("esa-neocc", baseUrls.esa),
+      fetchedAt: "2026-01-01T00:00:00Z",
+    };
+    const close = {
+      ...okMeta("esa-neocc", baseUrls.esa),
+      fetchedAt: "2026-01-01T00:30:00Z",
+    };
+    const meta = aggregateEsaFetchMeta(risk, close);
+    expect(meta.fetchedAt).toBe("2026-01-01T00:30:00Z");
+    expect(meta.components?.risk.fetchedAt).toBe("2026-01-01T00:00:00Z");
+    expect(meta.components?.close.fetchedAt).toBe("2026-01-01T00:30:00Z");
   });
 
   it("marks partial when ESA risk fails but close succeeds", () => {

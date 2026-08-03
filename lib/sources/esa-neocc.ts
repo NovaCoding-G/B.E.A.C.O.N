@@ -173,21 +173,31 @@ async function fetchEsaText(url: string): Promise<string> {
   });
 }
 
+type CachedEsaRisk = {
+  entries: EsaRiskEntry[];
+  lastUpdate?: string;
+  fetchedAt: string;
+};
+
+type CachedEsaClose = {
+  entries: EsaCloseApproach[];
+  lastUpdate?: string;
+  fetchedAt: string;
+};
+
 export async function fetchEsaRiskList(): Promise<{
   data: EsaRiskEntry[];
   lastUpdate?: string;
   meta: SourceFetchResult;
 }> {
-  const cached = getCached<{ entries: EsaRiskEntry[]; lastUpdate?: string }>(
-    CACHE_KEYS.ESA_RISK,
-  );
+  const cached = getCached<CachedEsaRisk>(CACHE_KEYS.ESA_RISK);
   if (cached) {
     return {
       data: cached.entries,
       lastUpdate: cached.lastUpdate,
       meta: {
         source: "esa-neocc",
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: cached.fetchedAt,
         success: true,
         url: RISK_URL,
       },
@@ -202,6 +212,7 @@ export async function fetchEsaRiskList(): Promise<{
     setCached(CACHE_KEYS.ESA_RISK, {
       entries: parsed.entries,
       lastUpdate: parsed.lastUpdate,
+      fetchedAt,
     });
 
     return {
@@ -235,16 +246,14 @@ export async function fetchEsaCloseApproaches(): Promise<{
   lastUpdate?: string;
   meta: SourceFetchResult;
 }> {
-  const cached = getCached<{ entries: EsaCloseApproach[]; lastUpdate?: string }>(
-    CACHE_KEYS.ESA_CLOSE,
-  );
+  const cached = getCached<CachedEsaClose>(CACHE_KEYS.ESA_CLOSE);
   if (cached) {
     return {
       data: cached.entries,
       lastUpdate: cached.lastUpdate,
       meta: {
         source: "esa-neocc",
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: cached.fetchedAt,
         success: true,
         url: CLOSE_URL,
       },
@@ -259,6 +268,7 @@ export async function fetchEsaCloseApproaches(): Promise<{
     setCached(CACHE_KEYS.ESA_CLOSE, {
       entries: parsed.entries,
       lastUpdate: parsed.lastUpdate,
+      fetchedAt,
     });
 
     return {
@@ -304,6 +314,21 @@ export async function fetchEsaNeocc(): Promise<{
   };
 }
 
+/** Prefer latest successful component fetch; otherwise max of both attempt times. */
+function aggregateFetchedAt(
+  riskMeta: SourceFetchResult,
+  closeMeta: SourceFetchResult,
+): string {
+  const successful: string[] = [];
+  if (riskMeta.success) successful.push(riskMeta.fetchedAt);
+  if (closeMeta.success) successful.push(closeMeta.fetchedAt);
+  const pool =
+    successful.length > 0
+      ? successful
+      : [riskMeta.fetchedAt, closeMeta.fetchedAt];
+  return pool.reduce((a, b) => (a >= b ? a : b));
+}
+
 /** Aggregate ESA risk + close metas (success only when both feeds succeed). */
 export function aggregateEsaFetchMeta(
   riskMeta: SourceFetchResult,
@@ -320,7 +345,7 @@ export function aggregateEsaFetchMeta(
   }
   return {
     source: "esa-neocc",
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: aggregateFetchedAt(riskMeta, closeMeta),
     success,
     partial: partial || undefined,
     error: failures.length > 0 ? failures.join("; ") : undefined,

@@ -38,7 +38,7 @@ export function DataProvenanceFooter({ meta }: DataProvenanceFooterProps) {
                 Provenance
               </span>
               <div className="mt-1">
-                Pulled{" "}
+                Reconciled{" "}
                 <span className="num text-[var(--foreground)]">
                   {formatTimestamp(meta.reconciledAt)} UTC
                 </span>

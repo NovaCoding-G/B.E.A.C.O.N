@@ -66,17 +66,22 @@ export function parseJplSentryResponse(raw: unknown): JplSentryEntry[] {
   return results;
 }
 
+type CachedJplSentry = {
+  data: JplSentryEntry[];
+  fetchedAt: string;
+};
+
 export async function fetchJplSentry(): Promise<{
   data: JplSentryEntry[];
   meta: SourceFetchResult;
 }> {
-  const cached = getCached<JplSentryEntry[]>(CACHE_KEYS.JPL_SENTRY);
+  const cached = getCached<CachedJplSentry>(CACHE_KEYS.JPL_SENTRY);
   if (cached) {
     return {
-      data: cached,
+      data: cached.data,
       meta: {
         source: "jpl-sentry",
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: cached.fetchedAt,
         success: true,
         url: SENTRY_URL,
       },
@@ -90,7 +95,7 @@ export async function fetchJplSentry(): Promise<{
       next: { revalidate: 900 },
     });
     const data = parseJplSentryResponse(json);
-    setCached(CACHE_KEYS.JPL_SENTRY, data);
+    setCached(CACHE_KEYS.JPL_SENTRY, { data, fetchedAt });
 
     return {
       data,

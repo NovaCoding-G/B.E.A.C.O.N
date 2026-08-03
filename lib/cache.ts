@@ -28,6 +28,13 @@ export function setCached<T>(
   });
 }
 
+/** Clear all entries (tests / explicit invalidation). */
+export function clearCache(): void {
+  store.clear();
+}
+
+export const CACHE_TTL_MS = DEFAULT_TTL_MS;
+
 export const CACHE_KEYS = {
   JPL_CAD: "jpl-cad",
   JPL_SENTRY: "jpl-sentry",

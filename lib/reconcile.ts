@@ -551,15 +551,23 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     const bSentry = b.sources.jplSentry.present ? 1 : 0;
     if (bSentry !== aSentry) return bSentry - aSentry;
 
-    const aDate =
+    // Chronological by calendar day (JPL Mmm + ESA ISO); missing/invalid last.
+    const aDateKey = approachDateKey(
       a.sources.jplCad.closeApproach?.closeApproachDate ??
-      a.sources.esaNeocc.closeApproach?.date ??
-      "";
-    const bDate =
+        a.sources.esaNeocc.closeApproach?.date ??
+        "",
+    );
+    const bDateKey = approachDateKey(
       b.sources.jplCad.closeApproach?.closeApproachDate ??
-      b.sources.esaNeocc.closeApproach?.date ??
-      "";
-    return aDate.localeCompare(bDate);
+        b.sources.esaNeocc.closeApproach?.date ??
+        "",
+    );
+    if (aDateKey !== bDateKey) {
+      if (aDateKey === null) return 1;
+      if (bDateKey === null) return -1;
+      return aDateKey.localeCompare(bDateKey);
+    }
+    return a.normalizedKey.localeCompare(b.normalizedKey);
   });
 
   const stats = computeReconcileStats(objects);

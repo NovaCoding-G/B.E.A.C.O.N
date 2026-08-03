@@ -167,6 +167,8 @@ export const ReconciledObjectSchema = z.object({
       sources: z.record(z.string(), z.union([z.number(), z.string(), z.null()])),
       threshold: z.string().optional(),
       thresholdExplanation: z.string().optional(),
+      /** Informational context (e.g. unequal risk-year aggregation windows). */
+      notes: z.string().optional(),
       category: z.enum(["orbital", "risk"]),
     }),
   ),

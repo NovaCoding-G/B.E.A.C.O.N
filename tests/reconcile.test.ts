@@ -9,6 +9,9 @@ import {
   palermoScalesDiverge,
   buildComparisonWindow,
   isWithinComparisonWindow,
+  normalizeRiskYears,
+  riskYearRangesDiffer,
+  unequalRiskYearsNote,
   DIVERGENCE_THRESHOLDS,
 } from "@/lib/reconcile";
 import { mapCadRow } from "@/lib/sources/jpl-cad";
@@ -313,6 +316,117 @@ describe("reconcileSources chronological date sort", () => {
     expect(approachDateKey("")).toBeNull();
     expect(approachDateKey("not-a-date")).toBeNull();
     expect(approachDateKey("2026-Foo-01")).toBeNull();
+  });
+});
+
+describe("risk-year aggregation windows", () => {
+  it("normalizes and detects equal vs unequal ranges", () => {
+    expect(normalizeRiskYears(" 2064-2088 ")).toBe("2064-2088");
+    expect(riskYearRangesDiffer("2064-2088", "2064-2088")).toBe(false);
+    expect(riskYearRangesDiffer("2064-2088", "2057-2103")).toBe(true);
+    expect(riskYearRangesDiffer("2064-2088", undefined)).toBe(false);
+    expect(unequalRiskYearsNote("2064-2088", "2057-2103")).toMatch(
+      /informational/,
+    );
+    expect(unequalRiskYearsNote("2064-2088", "2064-2088")).toBeUndefined();
+  });
+
+  it("annotates cumulative divergences when JPL/ESA risk years differ", () => {
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [
+        {
+          designation: "2025 CL3",
+          cumulativeImpactProbability: 0.000096,
+          palermoScaleCumulative: -3,
+          riskWindowYears: "2064-2088",
+        },
+      ],
+      esaRisk: [
+        {
+          designation: "2025CL3",
+          cumulativeImpactProbability: 0.0000224,
+          palermoScaleCumulative: -4,
+          riskYears: "2057-2103",
+        },
+      ],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const obj = result.objects[0];
+    const ip = obj.divergences.find(
+      (d) => d.field === "cumulativeImpactProbability",
+    );
+    const ps = obj.divergences.find(
+      (d) => d.field === "palermoScaleCumulative",
+    );
+    expect(ip?.notes).toMatch(/2064-2088/);
+    expect(ip?.notes).toMatch(/2057-2103/);
+    expect(ps?.notes).toMatch(/Aggregation windows differ/);
+    // Unequal ranges are context only — still counted as risk divergences
+    expect(obj.significantDivergences).toBe(2);
+    expect(obj.divergences.some((d) => d.field === "riskYears")).toBe(false);
+  });
+
+  it("does not annotate cumulative divergences when risk years match", () => {
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [
+        {
+          designation: "EQRANGE",
+          cumulativeImpactProbability: 0.001,
+          riskWindowYears: "2050-2100",
+        },
+      ],
+      esaRisk: [
+        {
+          designation: "EQRANGE",
+          cumulativeImpactProbability: 0.005,
+          riskYears: "2050-2100",
+        },
+      ],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const ip = result.objects[0].divergences.find(
+      (d) => d.field === "cumulativeImpactProbability",
+    );
+    expect(ip).toBeDefined();
+    expect(ip?.notes).toBeUndefined();
+  });
+
+  it("preserves available range on JPL-only and ESA-only objects", () => {
+    const result = reconcileSources({
+      jplCad: [],
+      jplSentry: [
+        {
+          designation: "JPLONLY",
+          cumulativeImpactProbability: 1e-5,
+          riskWindowYears: "2039-2122",
+        },
+      ],
+      esaRisk: [
+        {
+          designation: "ESAONLY",
+          cumulativeImpactProbability: 2e-5,
+          riskYears: "2072-2121",
+        },
+      ],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const jpl = result.objects.find((o) => o.normalizedKey === "JPLONLY");
+    const esa = result.objects.find((o) => o.normalizedKey === "ESAONLY");
+    expect(jpl?.sources.jplSentry.risk?.riskWindowYears).toBe("2039-2122");
+    expect(esa?.sources.esaNeocc.risk?.riskYears).toBe("2072-2121");
+    expect(jpl?.divergences.every((d) => !d.notes)).toBe(true);
+    expect(esa?.divergences.every((d) => !d.notes)).toBe(true);
   });
 });
 

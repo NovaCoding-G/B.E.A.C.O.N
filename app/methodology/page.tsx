@@ -35,6 +35,16 @@ export default function MethodologyPage() {
               same horizon; ESA upcoming encounters outside that window are
               excluded from coverage and field comparisons.
             </p>
+            <p>
+              Cumulative IP and Palermo compare source values as published.
+              JPL <span className="num">riskWindowYears</span> and ESA{" "}
+              <span className="num">riskYears</span> are shown side-by-side.
+              Unequal aggregation windows are{" "}
+              <span className="text-[var(--foreground)]">informational
+              context</span>
+              — they do not create a separate risk divergence and do not
+              suppress the cumulative thresholds.
+            </p>
           </div>
         </section>
 

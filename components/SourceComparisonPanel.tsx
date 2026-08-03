@@ -1,5 +1,5 @@
 import type { ReconciledObject } from "@/lib/types";
-import { FIELD_THRESHOLD_INFO } from "@/lib/reconcile";
+import { FIELD_THRESHOLD_INFO, riskYearRangesDiffer } from "@/lib/reconcile";
 
 interface SourceComparisonPanelProps {
   object: ReconciledObject;
@@ -50,6 +50,10 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
         ? `${esaNeocc.closeApproach.diameterMeters} m${esaNeocc.closeApproach.diameterFromMagnitude ? " *" : ""}`
         : absent();
 
+  const jplRiskYears = jplSentry.risk?.riskWindowYears;
+  const esaRiskYears = esaNeocc.risk?.riskYears;
+  const riskYearsUnequal = riskYearRangesDiffer(jplRiskYears, esaRiskYears);
+
   const rows: {
     label: string;
     note?: string;
@@ -57,6 +61,9 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
     sentry: string;
     esa: string;
     field?: string;
+    /** Highlight without counting as a reconcile divergence field. */
+    highlightSentry?: boolean;
+    highlightEsa?: boolean;
   }[] = [
     {
       label: "Close-approach date",
@@ -80,6 +87,17 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
       sentry: absent(),
       esa: formatNum(esaNeocc.closeApproach?.relativeVelocityKms, 2),
       field: "relativeVelocity",
+    },
+    {
+      label: "Risk years",
+      note: riskYearsUnequal
+        ? "aggregation windows differ (informational)"
+        : "cumulative aggregation window",
+      cad: absent(),
+      sentry: jplRiskYears ?? absent(),
+      esa: esaRiskYears ?? absent(),
+      highlightSentry: riskYearsUnequal && jplRiskYears !== undefined,
+      highlightEsa: riskYearsUnequal && esaRiskYears !== undefined,
     },
     {
       label: "Cumulative impact probability",
@@ -222,7 +240,7 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
                   className={cellClass(
                     row.field
                       ? isDivergent(divergences, row.field, "jpl-sentry")
-                      : false,
+                      : Boolean(row.highlightSentry),
                     jplSentry.present,
                   )}
                   title={tip}
@@ -233,7 +251,7 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
                   className={cellClass(
                     row.field
                       ? isDivergent(divergences, row.field, "esa-neocc")
-                      : false,
+                      : Boolean(row.highlightEsa),
                     esaNeocc.present,
                   )}
                   title={tip}
@@ -271,6 +289,11 @@ export function SourceComparisonPanel({ object }: SourceComparisonPanelProps) {
                 {Object.entries(d.sources)
                   .map(([src, val]) => `${src}=${val}`)
                   .join(" · ")}
+                {d.notes && (
+                  <span className="block text-[0.65rem] text-[var(--text-muted)] mt-1 normal-case tracking-normal">
+                    {d.notes}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

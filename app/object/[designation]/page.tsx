@@ -77,11 +77,21 @@ export default async function ObjectDetailPage({ params }: PageProps) {
                 }
                 sourceLabel={sentry ? "JPL Sentry" : "ESA NEOCC"}
               />
-              {sentry && (
+              {(sentry || esaRisk) && (
                 <p className="num text-xs text-[var(--text-muted)] mt-4">
-                  JPL window: {sentry.riskWindowYears ?? "—"}
-                  <span className="mx-1.5 opacity-40">·</span>
-                  Last obs: {sentry.lastObservation ?? "—"}
+                  {sentry && (
+                    <>JPL window: {sentry.riskWindowYears ?? "—"}</>
+                  )}
+                  {sentry && esaRisk && (
+                    <span className="mx-1.5 opacity-40">·</span>
+                  )}
+                  {esaRisk && <>ESA years: {esaRisk.riskYears ?? "—"}</>}
+                  {sentry && (
+                    <>
+                      <span className="mx-1.5 opacity-40">·</span>
+                      Last obs: {sentry.lastObservation ?? "—"}
+                    </>
+                  )}
                 </p>
               )}
             </div>

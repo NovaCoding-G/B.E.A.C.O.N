@@ -37,6 +37,9 @@ const sentryPayload = {
 };
 
 const esaHeaderOnly = `Last Update: 2026-07-22 15:48 UTC
+           Object             |    Diameter    |
+Num/des.           Name       |   m  |   *=Y   |
+AAAAAAAAAAAA AAAAAAAAAAAAAAAA | NNNN |    A    |
 `;
 
 beforeEach(() => {

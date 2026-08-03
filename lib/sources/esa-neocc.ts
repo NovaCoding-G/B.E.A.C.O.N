@@ -12,6 +12,9 @@ import {
 const RISK_URL = SOURCE_URLS["esa-neocc-risk"];
 const CLOSE_URL = SOURCE_URLS["esa-neocc-close"];
 
+/** Risk/close rows read through cols[10]; require a full layout before field access. */
+const ESA_MIN_COLS = 11;
+
 function parsePipeLine(line: string): string[] {
   return line.split("|").map((part) => part.trim());
 }
@@ -28,6 +31,24 @@ function parseIntField(value: string): number | undefined {
   if (!trimmed) return undefined;
   const n = parseInt(trimmed, 10);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function looksLikeHtml(text: string): boolean {
+  const sample = text.slice(0, 4_000).toLowerCase();
+  return (
+    sample.includes("<!doctype") ||
+    sample.includes("<html") ||
+    sample.includes("<head") ||
+    sample.includes("<body")
+  );
+}
+
+function isEsaColumnHeaderLine(line: string): boolean {
+  return (
+    line.includes("Num/des.") ||
+    line.includes("AAAAAAAA") ||
+    (line.includes("Object") && line.includes("|"))
+  );
 }
 
 /** Split ESA object column "Num/des. Name" into designation and optional name */
@@ -59,32 +80,63 @@ export function parseEsaObjectColumn(objectCol: string): {
   return { designation: trimmed.replace(/\s+/g, "") };
 }
 
+function assertRecognizableEsaFeed(
+  feedLabel: string,
+  lastUpdate: string | undefined,
+  headerSeen: boolean,
+  candidates: number,
+  accepted: number,
+): void {
+  if (!lastUpdate || !headerSeen) {
+    throw new Error(
+      `${feedLabel}: unrecognized or malformed body (missing Last Update / column header)`,
+    );
+  }
+  if (candidates > 0 && accepted === 0) {
+    throw new Error(
+      `${feedLabel}: all ${candidates} data row(s) rejected (truncated or format drift)`,
+    );
+  }
+}
+
 export function parseEsaRiskList(text: string): {
   lastUpdate?: string;
   entries: EsaRiskEntry[];
 } {
+  if (looksLikeHtml(text)) {
+    throw new Error("ESA risk list: HTML body rejected");
+  }
+
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   let lastUpdate: string | undefined;
+  let headerSeen = false;
   const entries: EsaRiskEntry[] = [];
+  let candidates = 0;
 
   for (const line of lines) {
     if (line.startsWith("Last Update:")) {
       lastUpdate = line.replace("Last Update:", "").trim();
       continue;
     }
-    if (
-      line.includes("Object") ||
-      line.includes("Num/des.") ||
-      line.includes("AAAAAAAA")
-    ) {
+    if (isEsaColumnHeaderLine(line)) {
+      headerSeen = true;
       continue;
     }
+    if (!line.includes("|")) continue;
 
     const cols = parsePipeLine(line);
-    if (cols.length < 8) continue;
-
-    const { designation, name } = parseEsaObjectColumn(cols[0]);
+    const { designation, name } = parseEsaObjectColumn(cols[0] ?? "");
     if (!designation) continue;
+
+    candidates += 1;
+    if (cols.length < ESA_MIN_COLS) {
+      console.warn(
+        "[esa-neocc] Risk row truncated:",
+        designation,
+        `cols=${cols.length}`,
+      );
+      continue;
+    }
 
     const entry = EsaRiskEntrySchema.safeParse({
       designation,
@@ -108,6 +160,14 @@ export function parseEsaRiskList(text: string): {
     }
   }
 
+  assertRecognizableEsaFeed(
+    "ESA risk list",
+    lastUpdate,
+    headerSeen,
+    candidates,
+    entries.length,
+  );
+
   return { lastUpdate, entries };
 }
 
@@ -115,28 +175,40 @@ export function parseEsaCloseApproaches(text: string): {
   lastUpdate?: string;
   entries: EsaCloseApproach[];
 } {
+  if (looksLikeHtml(text)) {
+    throw new Error("ESA close approaches: HTML body rejected");
+  }
+
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   let lastUpdate: string | undefined;
+  let headerSeen = false;
   const entries: EsaCloseApproach[] = [];
+  let candidates = 0;
 
   for (const line of lines) {
     if (line.startsWith("Last Update:")) {
       lastUpdate = line.replace("Last Update:", "").trim();
       continue;
     }
-    if (
-      line.includes("Object") ||
-      line.includes("Num/des.") ||
-      line.includes("AAAAAAAA")
-    ) {
+    if (isEsaColumnHeaderLine(line)) {
+      headerSeen = true;
       continue;
     }
+    if (!line.includes("|")) continue;
 
     const cols = parsePipeLine(line);
-    if (cols.length < 9) continue;
-
-    const { designation, name } = parseEsaObjectColumn(cols[0]);
+    const { designation, name } = parseEsaObjectColumn(cols[0] ?? "");
     if (!designation) continue;
+
+    candidates += 1;
+    if (cols.length < ESA_MIN_COLS) {
+      console.warn(
+        "[esa-neocc] Close approach row truncated:",
+        designation,
+        `cols=${cols.length}`,
+      );
+      continue;
+    }
 
     const entry = EsaCloseApproachSchema.safeParse({
       designation,
@@ -163,6 +235,14 @@ export function parseEsaCloseApproaches(text: string): {
       );
     }
   }
+
+  assertRecognizableEsaFeed(
+    "ESA close approaches",
+    lastUpdate,
+    headerSeen,
+    candidates,
+    entries.length,
+  );
 
   return { lastUpdate, entries };
 }

@@ -155,6 +155,10 @@ AAAAAAAAAAAA AAAAAAAAAAAAAAAA | NNNN |    A    | YYYY-MM-DD HH:MM | EEEEEEEE | N
     expect(entries[0].torinoScaleMax).toBe(0);
   });
 
+  it("rejects malformed ESA bodies that previously looked like empty feeds", () => {
+    expect(() => parseEsaRiskList(" maintenance ")).toThrow(/unrecognized/);
+  });
+
   it("parses object column variants", () => {
     expect(parseEsaObjectColumn("101955 Bennu")).toEqual({
       designation: "101955",

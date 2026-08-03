@@ -201,6 +201,121 @@ describe("calibrated field thresholds (helpers)", () => {
   });
 });
 
+describe("reconcileSources chronological date sort", () => {
+  it("orders JPL month-name dates chronologically (Jul before Aug)", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "2017 RH16",
+          closeApproachDate: "2026-Aug-31 21:05",
+          distanceAu: 0.1,
+        },
+        {
+          designation: "2026 OR",
+          closeApproachDate: "2026-Jul-28 21:16",
+          distanceAu: 0.1,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    expect(result.objects.map((o) => o.normalizedKey)).toEqual([
+      "2026OR",
+      "2017RH16",
+    ]);
+  });
+
+  it("orders mixed JPL and ESA date formats chronologically", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "173561",
+          closeApproachDate: "2026-Aug-09 05:12",
+          distanceAu: 0.1,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2021 PF7",
+          date: "2026-12-26",
+          missDistanceAu: 0.1,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    expect(result.objects.map((o) => o.normalizedKey)).toEqual([
+      "173561",
+      "2021PF7",
+    ]);
+  });
+
+  it("treats equivalent JPL/ESA calendar days as equal and uses designation tie-breaker", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "ZZZ999",
+          closeApproachDate: "2026-Jul-15 12:00",
+          distanceAu: 0.1,
+        },
+        {
+          designation: "AAA111",
+          closeApproachDate: "2026-Jul-15 06:00",
+          distanceAu: 0.1,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "MMM555",
+          date: "2026-07-15",
+          missDistanceAu: 0.1,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    expect(result.objects.map((o) => o.normalizedKey)).toEqual([
+      "AAA111",
+      "MMM555",
+      "ZZZ999",
+    ]);
+  });
+
+  it("places missing approach dates after dated objects (same priority group)", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "DATED",
+          closeApproachDate: "2026-Jul-01",
+          distanceAu: 0.1,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [{ designation: "NODATE", torinoScaleMax: 0 }],
+      esaClose: [],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+    expect(result.objects.map((o) => o.normalizedKey)).toEqual([
+      "DATED",
+      "NODATE",
+    ]);
+  });
+
+  it("approachDateKey returns null for invalid date strings", () => {
+    expect(approachDateKey("")).toBeNull();
+    expect(approachDateKey("not-a-date")).toBeNull();
+    expect(approachDateKey("2026-Foo-01")).toBeNull();
+  });
+});
+
 describe("reconcileSources", () => {
   it("matches object present in all three sources with concordant values", () => {
     const result = reconcileSources({

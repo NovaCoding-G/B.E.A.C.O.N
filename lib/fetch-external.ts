@@ -5,6 +5,12 @@ const DEFAULT_HEADERS: HeadersInit = {
   "User-Agent": `BEACON/${SITE.version} (+${SITE.githubRepo}; ${SITE.email})`,
 };
 
+/** Transient statuses worth retrying for idempotent requests. */
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
+/** Cap for Retry-After (and date-based) delays. */
+export const MAX_RETRY_AFTER_MS = 5_000;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -30,6 +36,39 @@ function normalizeFetchError(error: unknown): Error {
   return error;
 }
 
+function isIdempotentMethod(method: string | undefined): boolean {
+  const m = (method ?? "GET").toUpperCase();
+  return m === "GET" || m === "HEAD";
+}
+
+function isRetryableStatus(status: number): boolean {
+  return RETRYABLE_STATUSES.has(status);
+}
+
+/** Parse Retry-After (seconds or HTTP-date), clamped to MAX_RETRY_AFTER_MS. */
+export function parseRetryAfterMs(response: Response): number | undefined {
+  const raw = response.headers.get("Retry-After");
+  if (!raw) return undefined;
+
+  const asSeconds = Number(raw);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return Math.min(asSeconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+
+  const asDate = Date.parse(raw);
+  if (!Number.isNaN(asDate)) {
+    return Math.min(Math.max(0, asDate - Date.now()), MAX_RETRY_AFTER_MS);
+  }
+
+  return undefined;
+}
+
+function delayBeforeRetry(attempt: number, response?: Response): number {
+  const fromHeader = response ? parseRetryAfterMs(response) : undefined;
+  if (fromHeader !== undefined) return fromHeader;
+  return 400 * (attempt + 1);
+}
+
 export interface FetchExternalOptions extends RequestInit {
   timeoutMs?: number;
   retries?: number;
@@ -40,11 +79,23 @@ export async function fetchExternal(
   options: FetchExternalOptions = {},
 ): Promise<Response> {
   const { timeoutMs = 30_000, retries = 2, ...requestInit } = options;
+  const callerSignal = requestInit.signal ?? undefined;
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (callerSignal?.aborted) {
+      const abortError = new Error("This operation was aborted");
+      abortError.name = "AbortError";
+      throw normalizeFetchError(
+        callerSignal.reason instanceof Error
+          ? callerSignal.reason
+          : abortError,
+      );
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = callerSignal ?? controller.signal;
 
     try {
       const response = await fetch(url, {
@@ -53,17 +104,65 @@ export async function fetchExternal(
           ...DEFAULT_HEADERS,
           ...(requestInit.headers ?? {}),
         },
-        signal: requestInit.signal ?? controller.signal,
+        signal,
       });
 
       clearTimeout(timer);
+
+      const canRetryHttp =
+        !response.ok &&
+        isIdempotentMethod(
+          typeof requestInit.method === "string"
+            ? requestInit.method
+            : undefined,
+        ) &&
+        isRetryableStatus(response.status) &&
+        attempt < retries;
+
+      if (canRetryHttp) {
+        lastError = new Error(
+          `HTTP ${response.status} after ${attempt + 1} attempts`,
+        );
+        await sleep(delayBeforeRetry(attempt, response));
+        continue;
+      }
+
+      if (
+        !response.ok &&
+        isRetryableStatus(response.status) &&
+        attempt >= retries &&
+        isIdempotentMethod(
+          typeof requestInit.method === "string"
+            ? requestInit.method
+            : undefined,
+        )
+      ) {
+        throw new Error(
+          `HTTP ${response.status} after ${attempt + 1} attempts`,
+        );
+      }
+
       return response;
     } catch (error) {
       clearTimeout(timer);
+
+      // Caller cancellation must not be retried.
+      if (callerSignal?.aborted) {
+        throw normalizeFetchError(error);
+      }
+
+      // Exhausted-retry HTTP errors thrown above — rethrow as-is.
+      if (
+        error instanceof Error &&
+        /^HTTP \d{3} after \d+ attempts$/.test(error.message)
+      ) {
+        throw error;
+      }
+
       lastError = normalizeFetchError(error);
 
       if (attempt < retries) {
-        await sleep(400 * (attempt + 1));
+        await sleep(delayBeforeRetry(attempt));
       }
     }
   }

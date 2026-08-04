@@ -1,0 +1,20 @@
+# Dependabot: reviewed dependency updates for production and Actions.
+# Enable Dependabot alerts in GitHub repo Settings → Code security.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      production-minor:
+        dependency-type: production
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

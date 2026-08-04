@@ -2,7 +2,7 @@ export const SITE = {
   name: "BEACON",
   fullName:
     "Bayesian Earth-impact Assessment & Cross-source Observation Network",
-  version: "0.1.0",
+  version: "0.2.0",
   maintainerName: "NovaCoding",
   maintainerRole: "Maintainer",
   email: "novacodingg@gmail.com",

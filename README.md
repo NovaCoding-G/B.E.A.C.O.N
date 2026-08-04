@@ -118,7 +118,7 @@ See [CONTRIBUTING.md](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CONT
 ## Citation
 
 ```
-NovaCoding (2026). BEACON. v0.1.0. https://github.com/NovaCoding-G/B.E.A.C.O.N
+NovaCoding (2026). BEACON. v0.2.0. https://github.com/NovaCoding-G/B.E.A.C.O.N
 ```
 Also [CITATION.cff](https://github.com/NovaCoding-G/B.E.A.C.O.N/blob/main/CITATION.cff).
 

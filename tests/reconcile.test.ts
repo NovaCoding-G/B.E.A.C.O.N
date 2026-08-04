@@ -14,6 +14,7 @@ import {
   normalizeRiskYears,
   riskYearRangesDiffer,
   unequalRiskYearsNote,
+  selectPrimaryCloseApproaches,
   DIVERGENCE_THRESHOLDS,
 } from "@/lib/reconcile";
 import { mapCadRow } from "@/lib/sources/jpl-cad";
@@ -1049,5 +1050,118 @@ describe("shared close-approach comparison window", () => {
     expect(result.objects[0].normalizedKey).toBe("INSIDE");
     expect(result.objects[0].sources.jplCad.present).toBe(true);
     expect(result.objects[0].sources.esaNeocc.present).toBe(true);
+  });
+});
+
+describe("multi-encounter close-approach pairing", () => {
+  it("pairs the earliest shared calendar day instead of last-write-wins", () => {
+    // 2020 GE has two JPL encounters in-window; ESA reports only the January one.
+    // Feed order puts the March JPL row last — the old map overwrote January.
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "2020 GE",
+          closeApproachDate: "2026-Jan-29 12:00",
+          distanceAu: 0.021,
+          velocityRelativeKms: 8.1,
+        },
+        {
+          designation: "2020 GE",
+          closeApproachDate: "2026-Mar-09 08:00",
+          distanceAu: 0.045,
+          velocityRelativeKms: 11.2,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2020GE",
+          date: "2026-01-29",
+          missDistanceAu: 0.021,
+          relativeVelocityKms: 8.1,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    expect(result.objects).toHaveLength(1);
+    const obj = result.objects[0];
+    expect(obj.sources.jplCad.closeApproach?.closeApproachDate).toBe(
+      "2026-Jan-29 12:00",
+    );
+    expect(obj.sources.esaNeocc.closeApproach?.date).toBe("2026-01-29");
+    expect(obj.divergences.some((d) => d.field === "closeApproachDate")).toBe(
+      false,
+    );
+    expect(obj.divergences.some((d) => d.field === "missDistanceAu")).toBe(
+      false,
+    );
+    expect(obj.divergences.some((d) => d.field === "relativeVelocity")).toBe(
+      false,
+    );
+  });
+
+  it("does not compare miss distance or velocity across different encounter days", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "MISMATCH",
+          closeApproachDate: "2026-Mar-09",
+          distanceAu: 0.01,
+          velocityRelativeKms: 20,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "MISMATCH",
+          date: "2026-01-29",
+          missDistanceAu: 0.04,
+          relativeVelocityKms: 5,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const fields = result.objects[0].divergences.map((d) => d.field);
+    expect(fields).toContain("closeApproachDate");
+    expect(fields).not.toContain("missDistanceAu");
+    expect(fields).not.toContain("relativeVelocity");
+  });
+
+  it("selectPrimaryCloseApproaches returns the earliest shared day", () => {
+    const primary = selectPrimaryCloseApproaches(
+      [
+        {
+          designation: "2020 GE",
+          closeApproachDate: "2026-Mar-09",
+          distanceAu: 0.045,
+        },
+        {
+          designation: "2020 GE",
+          closeApproachDate: "2026-Jan-29",
+          distanceAu: 0.021,
+        },
+      ],
+      [
+        {
+          designation: "2020GE",
+          date: "2026-03-09",
+          missDistanceAu: 0.045,
+        },
+        {
+          designation: "2020GE",
+          date: "2026-01-29",
+          missDistanceAu: 0.021,
+        },
+      ],
+    );
+
+    expect(primary.jplCad?.closeApproachDate).toBe("2026-Jan-29");
+    expect(primary.esaClose?.date).toBe("2026-01-29");
   });
 });

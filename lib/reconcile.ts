@@ -349,39 +349,43 @@ function buildReconciledObject(
     });
   }
 
-  const jplDist = opts.jplCad?.distanceAu;
-  const esaDist = opts.esaClose?.missDistanceAu;
-  if (
-    relativeExceeds(
-      jplDist,
-      esaDist,
-      DIVERGENCE_THRESHOLDS.missDistanceAuRelative,
-    )
-  ) {
-    addDivergence(divergences, "missDistanceAu", {
-      "jpl-cad": jplDist ?? null,
-      "esa-neocc": esaDist ?? null,
-    });
-  }
-
-  const jplVel = opts.jplCad?.velocityRelativeKms;
-  const esaVel = opts.esaClose?.relativeVelocityKms;
-  if (relativeVelocitiesDiverge(jplVel, esaVel)) {
-    addDivergence(divergences, "relativeVelocity", {
-      "jpl-cad": jplVel ?? null,
-      "esa-neocc": esaVel ?? null,
-    });
-  }
-
   const jplDate = opts.jplCad?.closeApproachDate;
   const esaDate = opts.esaClose?.date;
-  if (jplDate && esaDate) {
-    const jplKey = approachDateKey(jplDate);
-    const esaKey = approachDateKey(esaDate);
-    if (jplKey && esaKey && jplKey !== esaKey) {
-      addDivergence(divergences, "closeApproachDate", {
-        "jpl-cad": jplDate,
-        "esa-neocc": esaDate,
+  const jplKey = jplDate ? approachDateKey(jplDate) : null;
+  const esaKey = esaDate ? approachDateKey(esaDate) : null;
+  const sameEncounterDay =
+    jplKey !== null && esaKey !== null && jplKey === esaKey;
+
+  if (jplDate && esaDate && jplKey && esaKey && jplKey !== esaKey) {
+    addDivergence(divergences, "closeApproachDate", {
+      "jpl-cad": jplDate,
+      "esa-neocc": esaDate,
+    });
+  }
+
+  // Geometry is encounter-specific: only compare when both sides share a day.
+  if (sameEncounterDay) {
+    const jplDist = opts.jplCad?.distanceAu;
+    const esaDist = opts.esaClose?.missDistanceAu;
+    if (
+      relativeExceeds(
+        jplDist,
+        esaDist,
+        DIVERGENCE_THRESHOLDS.missDistanceAuRelative,
+      )
+    ) {
+      addDivergence(divergences, "missDistanceAu", {
+        "jpl-cad": jplDist ?? null,
+        "esa-neocc": esaDist ?? null,
+      });
+    }
+
+    const jplVel = opts.jplCad?.velocityRelativeKms;
+    const esaVel = opts.esaClose?.relativeVelocityKms;
+    if (relativeVelocitiesDiverge(jplVel, esaVel)) {
+      addDivergence(divergences, "relativeVelocity", {
+        "jpl-cad": jplVel ?? null,
+        "esa-neocc": esaVel ?? null,
       });
     }
   }
@@ -529,6 +533,63 @@ export function filterReconciledObjects(
   }
 }
 
+/**
+ * Choose the close-approach pair to surface for a designation.
+ * Prefer the earliest calendar day present in both feeds; otherwise the
+ * earliest encounter from each source (geometry is compared only on same-day pairs).
+ */
+export function selectPrimaryCloseApproaches(
+  jplCad: JplCloseApproach[],
+  esaClose: EsaCloseApproach[],
+): { jplCad?: JplCloseApproach; esaClose?: EsaCloseApproach } {
+  const jplByDay = new Map<string, JplCloseApproach>();
+  for (const ca of jplCad) {
+    const key = approachDateKey(ca.closeApproachDate);
+    if (!key) continue;
+    const existing = jplByDay.get(key);
+    if (!existing) {
+      jplByDay.set(key, ca);
+      continue;
+    }
+    // Stable pick when a feed repeats the same calendar day.
+    if (ca.closeApproachDate.localeCompare(existing.closeApproachDate) < 0) {
+      jplByDay.set(key, ca);
+    }
+  }
+
+  const esaByDay = new Map<string, EsaCloseApproach>();
+  for (const ca of esaClose) {
+    const key = approachDateKey(ca.date);
+    if (!key) continue;
+    const existing = esaByDay.get(key);
+    if (!existing) {
+      esaByDay.set(key, ca);
+      continue;
+    }
+    if (ca.date.localeCompare(existing.date) < 0) {
+      esaByDay.set(key, ca);
+    }
+  }
+
+  const sharedDays = [...jplByDay.keys()]
+    .filter((day) => esaByDay.has(day))
+    .sort((a, b) => a.localeCompare(b));
+
+  if (sharedDays.length > 0) {
+    const day = sharedDays[0];
+    return { jplCad: jplByDay.get(day), esaClose: esaByDay.get(day) };
+  }
+
+  const earliestJpl = [...jplByDay.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )[0]?.[1];
+  const earliestEsa = [...esaByDay.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )[0]?.[1];
+
+  return { jplCad: earliestJpl, esaClose: earliestEsa };
+}
+
 export function reconcileSources(input: ReconcileInput): ReconcileResult {
   const comparisonWindow = buildComparisonWindow(
     input.referenceDate ? new Date(input.referenceDate) : new Date(),
@@ -545,10 +606,10 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     string,
     {
       designation: string;
-      jplCad?: JplCloseApproach;
+      jplCad: JplCloseApproach[];
       jplSentry?: JplSentryEntry;
       esaRisk?: EsaRiskEntry;
-      esaClose?: EsaCloseApproach;
+      esaClose: EsaCloseApproach[];
     }
   >();
 
@@ -557,7 +618,11 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
     updater: (entry: NonNullable<ReturnType<typeof map.get>>) => void,
   ) => {
     const key = normalizeDesignation(rawDesignation);
-    const existing = map.get(key) ?? { designation: rawDesignation };
+    const existing = map.get(key) ?? {
+      designation: rawDesignation,
+      jplCad: [],
+      esaClose: [],
+    };
     updater(existing);
     if (!existing.designation.includes(" ") && rawDesignation.includes(" ")) {
       existing.designation = rawDesignation;
@@ -567,7 +632,7 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
 
   for (const ca of jplCad) {
     register(ca.designation, (e) => {
-      e.jplCad = ca;
+      e.jplCad.push(ca);
     });
   }
 
@@ -585,19 +650,20 @@ export function reconcileSources(input: ReconcileInput): ReconcileResult {
 
   for (const entry of esaClose) {
     register(entry.designation, (e) => {
-      e.esaClose = entry;
+      e.esaClose.push(entry);
     });
   }
 
   const objects: ReconciledObject[] = [];
 
   for (const [key, entry] of map) {
+    const primary = selectPrimaryCloseApproaches(entry.jplCad, entry.esaClose);
     objects.push(
       buildReconciledObject(entry.designation, key, {
-        jplCad: entry.jplCad,
+        jplCad: primary.jplCad,
         jplSentry: entry.jplSentry,
         esaRisk: entry.esaRisk,
-        esaClose: entry.esaClose,
+        esaClose: primary.esaClose,
         cadFetchedAt: input.sourceStatus["jpl-cad"].fetchedAt,
         sentryFetchedAt: input.sourceStatus["jpl-sentry"].fetchedAt,
         esaFetchedAt: input.sourceStatus["esa-neocc"].fetchedAt,

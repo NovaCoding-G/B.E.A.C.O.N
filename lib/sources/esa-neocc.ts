@@ -141,7 +141,8 @@ export function parseEsaRiskList(text: string): {
     const entry = EsaRiskEntrySchema.safeParse({
       designation,
       name,
-      diameterMeters: parseIntField(cols[1]),
+      // ESA publishes sub-meter diameters as decimals (e.g. 2.6); do not truncate.
+      diameterMeters: parseScientific(cols[1]),
       diameterFromMagnitude: cols[2] === "*",
       viMaxDate: cols[3] || undefined,
       maxImpactProbability: parseScientific(cols[4]),
@@ -217,7 +218,8 @@ export function parseEsaCloseApproaches(text: string): {
       missDistanceKm: parseIntField(cols[2]),
       missDistanceAu: parseScientific(cols[3]),
       missDistanceLd: parseScientific(cols[4]),
-      diameterMeters: parseIntField(cols[5]),
+      // ESA publishes sub-meter diameters as decimals (e.g. 2.8); do not truncate.
+      diameterMeters: parseScientific(cols[5]),
       diameterFromMagnitude: cols[6] === "*",
       absoluteMagnitudeH: parseScientific(cols[7]),
       maxBrightnessMag: parseScientific(cols[8]),

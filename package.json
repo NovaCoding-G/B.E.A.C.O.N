@@ -25,7 +25,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.185.1",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",

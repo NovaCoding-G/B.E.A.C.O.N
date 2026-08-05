@@ -55,6 +55,43 @@ afterEach(() => {
   clearCache();
 });
 
+describe("JPL sources do not cache total row-rejection as healthy", () => {
+  it("JPL CAD: renamed fields → success=false and no cache pin", async () => {
+    mockedJson.mockResolvedValueOnce({
+      fields: ["designation", "close_approach", "miss_au"],
+      data: [["2026 OU", "2026-Jul-23", "0.02"]],
+    });
+
+    const first = await fetchJplCloseApproaches();
+    expect(first.meta.success).toBe(false);
+    expect(first.data).toEqual([]);
+    expect(first.meta.error).toMatch(/all 1 data row/);
+
+    mockedJson.mockResolvedValueOnce(cadPayload);
+    const second = await fetchJplCloseApproaches();
+    expect(second.meta.success).toBe(true);
+    expect(second.data).toHaveLength(1);
+    expect(mockedJson).toHaveBeenCalledTimes(2);
+  });
+
+  it("JPL Sentry: missing des on every row → success=false and no cache pin", async () => {
+    mockedJson.mockResolvedValueOnce({
+      data: [{ designation: "1979 XB", ip: "1e-6" }],
+    });
+
+    const first = await fetchJplSentry();
+    expect(first.meta.success).toBe(false);
+    expect(first.data).toEqual([]);
+    expect(first.meta.error).toMatch(/all 1 data row/);
+
+    mockedJson.mockResolvedValueOnce(sentryPayload);
+    const second = await fetchJplSentry();
+    expect(second.meta.success).toBe(true);
+    expect(second.data).toHaveLength(1);
+    expect(mockedJson).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("source cache preserves fetchedAt", () => {
   it("JPL CAD: first fetch records time; cache hit keeps it; TTL miss advances", async () => {
     mockedJson.mockResolvedValue(cadPayload);

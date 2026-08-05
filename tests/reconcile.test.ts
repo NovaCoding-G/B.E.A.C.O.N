@@ -18,6 +18,7 @@ import {
   DIVERGENCE_THRESHOLDS,
 } from "@/lib/reconcile";
 import { mapCadRow } from "@/lib/sources/jpl-cad";
+import { parseJplCadResponse } from "@/lib/sources/jpl-cad";
 import { parseJplSentryResponse } from "@/lib/sources/jpl-sentry";
 import {
   parseEsaRiskList,
@@ -114,6 +115,31 @@ describe("mapCadRow", () => {
   });
 });
 
+describe("parseJplCadResponse", () => {
+  it("allows a genuinely empty catalog", () => {
+    expect(
+      parseJplCadResponse({
+        fields: ["des", "cd", "dist"],
+        data: [],
+      }),
+    ).toEqual([]);
+  });
+
+  it("rejects envelopes where every data row is unusable (format drift)", () => {
+    // Valid CAD envelope, but required fields renamed — previously returned []
+    // and was cached as a healthy empty catalog for 15 minutes.
+    expect(() =>
+      parseJplCadResponse({
+        fields: ["designation", "close_approach", "miss_au"],
+        data: [
+          ["2026 OU", "2026-Jul-23", "0.02"],
+          ["2025 SC", "2026-Jul-15", "0.05"],
+        ],
+      }),
+    ).toThrow(/all 2 data row/);
+  });
+});
+
 describe("parseJplSentryResponse", () => {
   it("parses sentry entries", () => {
     const raw = {
@@ -142,6 +168,21 @@ describe("parseJplSentryResponse", () => {
     expect(entries[0].designation).toBe("1979 XB");
     expect(entries[0].torinoScaleMax).toBe(0);
     expect(entries[0].cumulativeImpactProbability).toBeCloseTo(8.515158e-7);
+  });
+
+  it("allows a genuinely empty risk list", () => {
+    expect(parseJplSentryResponse({ data: [] })).toEqual([]);
+  });
+
+  it("rejects payloads where every entry fails mapping (format drift)", () => {
+    expect(() =>
+      parseJplSentryResponse({
+        data: [
+          { designation: "1979 XB", ip: "1e-6" },
+          { name: "no des field", ip: "1e-5" },
+        ],
+      }),
+    ).toThrow(/all 2 data row/);
   });
 });
 

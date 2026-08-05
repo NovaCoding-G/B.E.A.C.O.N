@@ -75,6 +75,14 @@ export function parseJplCadResponse(raw: unknown): JplCloseApproach[] {
     if (mapped) results.push(mapped);
   }
 
+  // Same guard as ESA: a non-empty payload where every row is unusable is
+  // format drift, not a healthy empty catalog. Callers must not cache this.
+  if (data.length > 0 && results.length === 0) {
+    throw new Error(
+      `JPL CAD: all ${data.length} data row(s) rejected (missing required fields or format drift)`,
+    );
+  }
+
   return results;
 }
 

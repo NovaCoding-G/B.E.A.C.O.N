@@ -57,10 +57,18 @@ export function parseJplSentryResponse(raw: unknown): JplSentryEntry[] {
   }
 
   const results: JplSentryEntry[] = [];
+  const rows = validated.data.data;
 
-  for (const item of validated.data.data) {
+  for (const item of rows) {
     const mapped = mapJplSentryItem(item);
     if (mapped) results.push(mapped);
+  }
+
+  // Same guard as ESA: reject total row-loss as unhealthy format drift.
+  if (rows.length > 0 && results.length === 0) {
+    throw new Error(
+      `JPL Sentry: all ${rows.length} data row(s) rejected (format drift)`,
+    );
   }
 
   return results;

@@ -129,6 +129,49 @@ export function approachDateKey(date: string): string | null {
   return null;
 }
 
+/**
+ * Absolute day gap between YYYY-MM-DD keys, or null if either key is invalid.
+ * Used to treat same-flyby dates that disagree by one calendar day (midnight /
+ * ephemeris skew) as one encounter for geometry comparison.
+ */
+export function daysBetweenDateKeys(
+  a: string,
+  b: string,
+): number | null {
+  const aMatch = a.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const bMatch = b.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!aMatch || !bMatch) return null;
+  const aUtc = Date.UTC(
+    Number(aMatch[1]),
+    Number(aMatch[2]) - 1,
+    Number(aMatch[3]),
+  );
+  const bUtc = Date.UTC(
+    Number(bMatch[1]),
+    Number(bMatch[2]) - 1,
+    Number(bMatch[3]),
+  );
+  return Math.abs(Math.round((aUtc - bUtc) / 86_400_000));
+}
+
+/** Max calendar-day gap still treated as the same physical close approach. */
+export const SAME_ENCOUNTER_MAX_DAY_DELTA = 1;
+
+/** True when both dates parse and fall on the same flyby (±1 calendar day). */
+export function encounterDaysAlign(
+  jplDate: string | undefined,
+  esaDate: string | undefined,
+  maxDayDelta: number = SAME_ENCOUNTER_MAX_DAY_DELTA,
+): boolean {
+  if (!jplDate || !esaDate) return false;
+  const jplKey = approachDateKey(jplDate);
+  const esaKey = approachDateKey(esaDate);
+  if (!jplKey || !esaKey) return false;
+  if (jplKey === esaKey) return true;
+  const gap = daysBetweenDateKeys(jplKey, esaKey);
+  return gap !== null && gap <= maxDayDelta;
+}
+
 function utcDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -353,8 +396,8 @@ function buildReconciledObject(
   const esaDate = opts.esaClose?.date;
   const jplKey = jplDate ? approachDateKey(jplDate) : null;
   const esaKey = esaDate ? approachDateKey(esaDate) : null;
-  const sameEncounterDay =
-    jplKey !== null && esaKey !== null && jplKey === esaKey;
+  // Same flyby may disagree by one calendar day (UTC midnight / ephemeris skew).
+  const sameEncounter = encounterDaysAlign(jplDate, esaDate);
 
   if (jplDate && esaDate && jplKey && esaKey && jplKey !== esaKey) {
     addDivergence(divergences, "closeApproachDate", {
@@ -363,8 +406,8 @@ function buildReconciledObject(
     });
   }
 
-  // Geometry is encounter-specific: only compare when both sides share a day.
-  if (sameEncounterDay) {
+  // Geometry is encounter-specific: compare only for the same flyby (±1 day).
+  if (sameEncounter) {
     const jplDist = opts.jplCad?.distanceAu;
     const esaDist = opts.esaClose?.missDistanceAu;
     if (
@@ -535,8 +578,9 @@ export function filterReconciledObjects(
 
 /**
  * Choose the close-approach pair to surface for a designation.
- * Prefer the earliest calendar day present in both feeds; otherwise the
- * earliest encounter from each source (geometry is compared only on same-day pairs).
+ * Prefer the earliest exact shared calendar day; else the earliest ±1-day
+ * near-match (same flyby with midnight/ephemeris skew); else the earliest
+ * encounter from each source (geometry compared only for aligned encounters).
  */
 export function selectPrimaryCloseApproaches(
   jplCad: JplCloseApproach[],
@@ -578,6 +622,30 @@ export function selectPrimaryCloseApproaches(
   if (sharedDays.length > 0) {
     const day = sharedDays[0];
     return { jplCad: jplByDay.get(day), esaClose: esaByDay.get(day) };
+  }
+
+  // Same physical flyby can land on adjacent UTC calendar days.
+  const nearPairs: { jplDay: string; esaDay: string; gap: number }[] = [];
+  for (const jplDay of jplByDay.keys()) {
+    for (const esaDay of esaByDay.keys()) {
+      const gap = daysBetweenDateKeys(jplDay, esaDay);
+      if (gap !== null && gap > 0 && gap <= SAME_ENCOUNTER_MAX_DAY_DELTA) {
+        nearPairs.push({ jplDay, esaDay, gap });
+      }
+    }
+  }
+  if (nearPairs.length > 0) {
+    nearPairs.sort(
+      (a, b) =>
+        a.gap - b.gap ||
+        a.jplDay.localeCompare(b.jplDay) ||
+        a.esaDay.localeCompare(b.esaDay),
+    );
+    const best = nearPairs[0];
+    return {
+      jplCad: jplByDay.get(best.jplDay),
+      esaClose: esaByDay.get(best.esaDay),
+    };
   }
 
   const earliestJpl = [...jplByDay.entries()].sort((a, b) =>

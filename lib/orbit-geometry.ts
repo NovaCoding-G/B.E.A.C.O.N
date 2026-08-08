@@ -1,4 +1,7 @@
-import { DIVERGENCE_THRESHOLDS } from "@/lib/reconcile";
+import {
+  DIVERGENCE_THRESHOLDS,
+  encounterDaysAlign,
+} from "@/lib/reconcile";
 
 export const LD_AU = 0.002569;
 
@@ -109,8 +112,10 @@ export function buildApproachGeometry(
     };
   }
 
+  // Mirror reconcile: only flag geometric Δ for the same flyby (±1 day).
   const hasDivergence =
     markers.length === 2 &&
+    encounterDaysAlign(input.jplDate, input.esaDate) &&
     Math.abs(markers[0].distanceAu - markers[1].distanceAu) /
       Math.max(markers[0].distanceAu, markers[1].distanceAu) >
       DIVERGENCE_THRESHOLDS.missDistanceAuRelative;

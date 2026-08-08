@@ -30,9 +30,33 @@ describe("orbit-geometry", () => {
       designation: "2026 OU",
       jplDistanceAu: 0.02,
       esaDistanceAu: 0.03,
+      jplDate: "2026-Jul-23 06:19",
+      esaDate: "2026-07-23",
     });
     expect(g!.markers).toHaveLength(2);
     expect(g!.hasDivergence).toBe(true);
+  });
+
+  it("flags divergence for same flyby when dates disagree by one calendar day", () => {
+    const g = buildApproachGeometry({
+      designation: "2019 HS",
+      jplDistanceAu: 0.018745,
+      esaDistanceAu: 0.015696,
+      jplDate: "2027-Apr-29 02:16",
+      esaDate: "2027-04-28",
+    });
+    expect(g!.hasDivergence).toBe(true);
+  });
+
+  it("does not flag geometric divergence across unrelated encounter months", () => {
+    const g = buildApproachGeometry({
+      designation: "MISMATCH",
+      jplDistanceAu: 0.01,
+      esaDistanceAu: 0.04,
+      jplDate: "2026-Mar-09",
+      esaDate: "2026-01-29",
+    });
+    expect(g!.hasDivergence).toBe(false);
   });
 
   it("maps LD ring inside frame", () => {

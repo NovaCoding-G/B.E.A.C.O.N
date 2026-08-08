@@ -69,6 +69,24 @@ function delayBeforeRetry(attempt: number, response?: Response): number {
   return 400 * (attempt + 1);
 }
 
+/** Compose per-attempt timeout with an optional caller AbortSignal. */
+function composeAbortSignal(
+  timeoutSignal: AbortSignal,
+  callerSignal?: AbortSignal,
+): AbortSignal {
+  if (!callerSignal) return timeoutSignal;
+  return AbortSignal.any([timeoutSignal, callerSignal]);
+}
+
+/** Drain/cancel unused bodies so undici can reuse sockets before retry/throw. */
+async function releaseResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best-effort: body may already be locked or consumed.
+  }
+}
+
 export interface FetchExternalOptions extends RequestInit {
   timeoutMs?: number;
   retries?: number;
@@ -95,7 +113,7 @@ export async function fetchExternal(
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const signal = callerSignal ?? controller.signal;
+    const signal = composeAbortSignal(controller.signal, callerSignal);
 
     try {
       const response = await fetch(url, {
@@ -123,6 +141,7 @@ export async function fetchExternal(
         lastError = new Error(
           `HTTP ${response.status} after ${attempt + 1} attempts`,
         );
+        await releaseResponseBody(response);
         await sleep(delayBeforeRetry(attempt, response));
         continue;
       }
@@ -137,6 +156,7 @@ export async function fetchExternal(
             : undefined,
         )
       ) {
+        await releaseResponseBody(response);
         throw new Error(
           `HTTP ${response.status} after ${attempt + 1} attempts`,
         );

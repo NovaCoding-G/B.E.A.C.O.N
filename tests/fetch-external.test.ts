@@ -120,6 +120,69 @@ describe("fetchExternal HTTP retries", () => {
     ).rejects.toThrow(/aborted/i);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("enforces timeoutMs even when a caller signal is provided", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const caller = new AbortController();
+
+    fetchMock.mockImplementation(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error("missing abort signal"));
+            return;
+          }
+          const onAbort = () => {
+            const err = new Error("This operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (signal.aborted) {
+            onAbort();
+            return;
+          }
+          signal.addEventListener("abort", onAbort, { once: true });
+        }),
+    );
+
+    const pending = fetchExternalJson("https://example.com/hang", {
+      retries: 0,
+      timeoutMs: 40,
+      signal: caller.signal,
+    });
+    const settled = expect(pending).rejects.toThrow(/abort/i);
+    await vi.advanceTimersByTimeAsync(40);
+    await settled;
+    expect(caller.signal.aborted).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels unused response bodies before retrying HTTP statuses", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const busyStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("upstream busy"));
+      },
+    });
+    const busyResponse = new Response(busyStream, { status: 503 });
+    const cancelSpy = vi.spyOn(busyResponse.body!, "cancel");
+
+    fetchMock
+      .mockResolvedValueOnce(busyResponse)
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const pending = fetchExternalJson("https://example.com/data", {
+      retries: 2,
+      timeoutMs: 100,
+    });
+    const settled = expect(pending).resolves.toEqual({ ok: true });
+    await vi.runAllTimersAsync();
+    await settled;
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("parseRetryAfterMs", () => {

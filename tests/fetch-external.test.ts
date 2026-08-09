@@ -160,20 +160,22 @@ describe("fetchExternal HTTP retries", () => {
   it("cancels retryable response bodies before the next attempt", async () => {
     const fetchMock = vi.mocked(fetch);
     const cancel = vi.fn().mockResolvedValue(undefined);
-    const body = {
-      cancel,
-      getReader: () => {
-        throw new Error("body should be cancelled, not read");
-      },
-    } as unknown as ReadableStream<Uint8Array>;
 
     fetchMock
-      .mockResolvedValueOnce(
-        new Response(body, {
-          status: 503,
-          headers: { "Content-Type": "text/plain" },
-        }),
-      )
+      .mockImplementationOnce(async () => {
+        const response = new Response("service unavailable", { status: 503 });
+        // Undici may wrap the stream; force a cancel hook we can observe.
+        Object.defineProperty(response, "body", {
+          configurable: true,
+          value: {
+            cancel,
+            getReader() {
+              throw new Error("body should be cancelled, not read");
+            },
+          },
+        });
+        return response;
+      })
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
 
     const pending = fetchExternalJson("https://example.com/data", {

@@ -1264,4 +1264,42 @@ describe("multi-encounter close-approach pairing", () => {
     expect(primary.jplCad?.closeApproachDate).toBe("2026-Jan-29");
     expect(primary.esaClose?.date).toBe("2026-01-29");
   });
+
+  it("prefers an earlier ±1-day flyby over a later exact shared day", () => {
+    // Imminent flyby disagrees by one UTC day; a later flyby matches exactly.
+    // Primary must stay on the imminent encounter, not jump to June.
+    const primary = selectPrimaryCloseApproaches(
+      [
+        {
+          designation: "SKEW",
+          closeApproachDate: "2026-Jan-16 00:10",
+          distanceAu: 0.012,
+          velocityRelativeKms: 8.1,
+        },
+        {
+          designation: "SKEW",
+          closeApproachDate: "2026-Jun-01 12:00",
+          distanceAu: 0.04,
+          velocityRelativeKms: 11.0,
+        },
+      ],
+      [
+        {
+          designation: "SKEW",
+          date: "2026-01-15",
+          missDistanceAu: 0.0125,
+          relativeVelocityKms: 8.1,
+        },
+        {
+          designation: "SKEW",
+          date: "2026-06-01",
+          missDistanceAu: 0.041,
+          relativeVelocityKms: 11.0,
+        },
+      ],
+    );
+
+    expect(primary.jplCad?.closeApproachDate).toBe("2026-Jan-16 00:10");
+    expect(primary.esaClose?.date).toBe("2026-01-15");
+  });
 });

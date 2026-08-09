@@ -218,6 +218,17 @@ AAAAAAAAAAAA AAAAAAAAAAAAAAAA | NNNN |    A    | YYYY-MM-DD HH:MM | EEEEEEEE | N
     expect(parseEsaObjectColumn("2023VD3")).toEqual({
       designation: "2023VD3",
     });
+    // Spaced provisional must stay a designation (not year=2024, name=YR4).
+    expect(parseEsaObjectColumn("2024 YR4")).toEqual({
+      designation: "2024 YR4",
+    });
+    expect(parseEsaObjectColumn("2024 YR4 Alias")).toEqual({
+      designation: "2024 YR4",
+      name: "Alias",
+    });
+    expect(normalizeDesignation(parseEsaObjectColumn("2024 YR4").designation)).toBe(
+      "2024YR4",
+    );
   });
 });
 

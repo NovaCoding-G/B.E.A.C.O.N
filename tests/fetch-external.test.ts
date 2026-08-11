@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchExternal,
   fetchExternalJson,
   MAX_RETRY_AFTER_MS,
   parseRetryAfterMs,
@@ -119,6 +120,73 @@ describe("fetchExternal HTTP retries", () => {
       }),
     ).rejects.toThrow(/aborted/i);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("timeout still aborts when the caller also passes a signal", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const caller = new AbortController();
+
+    fetchMock.mockImplementationOnce((_url, init) => {
+      return new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error("missing signal"));
+          return;
+        }
+        signal.addEventListener(
+          "abort",
+          () => {
+            const err = new Error("This operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          },
+          { once: true },
+        );
+      });
+    });
+
+    const pending = fetchExternal("https://example.com/hang", {
+      retries: 0,
+      timeoutMs: 50,
+      signal: caller.signal,
+    });
+    const settled = expect(pending).rejects.toThrow(/aborted/i);
+    await vi.advanceTimersByTimeAsync(50);
+    await settled;
+    expect(caller.signal.aborted).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels retryable response bodies before the next attempt", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const cancel = vi.fn().mockResolvedValue(undefined);
+
+    fetchMock
+      .mockImplementationOnce(async () => {
+        const response = new Response("service unavailable", { status: 503 });
+        // Undici may wrap the stream; force a cancel hook we can observe.
+        Object.defineProperty(response, "body", {
+          configurable: true,
+          value: {
+            cancel,
+            getReader() {
+              throw new Error("body should be cancelled, not read");
+            },
+          },
+        });
+        return response;
+      })
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const pending = fetchExternalJson("https://example.com/data", {
+      retries: 2,
+      timeoutMs: 100,
+    });
+    const settled = expect(pending).resolves.toEqual({ ok: true });
+    await vi.runAllTimersAsync();
+    await settled;
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

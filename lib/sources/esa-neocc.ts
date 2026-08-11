@@ -59,6 +59,21 @@ export function parseEsaObjectColumn(objectCol: string): {
   const trimmed = objectCol.trim();
   if (!trimmed) return { designation: "" };
 
+  const parts = trimmed.split(/\s+/);
+
+  // Spaced provisional: "2024 YR4" / "2024 YR4 Alias" — must not be read as
+  // permanent number 2024 with name "YR4" (breaks JPL cross-matching).
+  if (
+    parts.length >= 2 &&
+    /^\d{4}$/.test(parts[0]) &&
+    /^[A-Za-z]{1,2}\d*$/.test(parts[1])
+  ) {
+    return {
+      designation: `${parts[0]} ${parts[1]}`,
+      name: parts.slice(2).join(" ") || undefined,
+    };
+  }
+
   // Numbered object: permanent number is the matching key; remainder is display name/alias
   const numberedMatch = trimmed.match(/^(\d+)\s+(.+)$/);
   if (numberedMatch) {
@@ -68,8 +83,7 @@ export function parseEsaObjectColumn(objectCol: string): {
     };
   }
 
-  // Provisional designation with optional trailing name
-  const parts = trimmed.split(/\s+/);
+  // Compact provisional / other single-token designations
   if (parts.length >= 2 && /^\d/.test(parts[0])) {
     return {
       designation: parts[0],

@@ -69,6 +69,41 @@ function delayBeforeRetry(attempt: number, response?: Response): number {
   return 400 * (attempt + 1);
 }
 
+/** Release unread bodies so retries do not pin sockets until GC. */
+function releaseResponseBody(response: Response): void {
+  try {
+    void response.body?.cancel();
+  } catch {
+    // Best-effort; response may already be locked or closed.
+  }
+}
+
+/**
+ * Combine per-attempt timeout with an optional caller AbortSignal.
+ * Prefer AbortSignal.any; fall back to a bridging controller.
+ */
+function composeAbortSignal(
+  timeoutSignal: AbortSignal,
+  callerSignal?: AbortSignal,
+): AbortSignal {
+  if (!callerSignal) return timeoutSignal;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([timeoutSignal, callerSignal]);
+  }
+
+  const composed = new AbortController();
+  const forward = () => {
+    if (!composed.signal.aborted) composed.abort();
+  };
+  if (timeoutSignal.aborted || callerSignal.aborted) {
+    forward();
+    return composed.signal;
+  }
+  timeoutSignal.addEventListener("abort", forward, { once: true });
+  callerSignal.addEventListener("abort", forward, { once: true });
+  return composed.signal;
+}
+
 export interface FetchExternalOptions extends RequestInit {
   timeoutMs?: number;
   retries?: number;
@@ -95,7 +130,7 @@ export async function fetchExternal(
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const signal = callerSignal ?? controller.signal;
+    const signal = composeAbortSignal(controller.signal, callerSignal);
 
     try {
       const response = await fetch(url, {
@@ -123,6 +158,7 @@ export async function fetchExternal(
         lastError = new Error(
           `HTTP ${response.status} after ${attempt + 1} attempts`,
         );
+        releaseResponseBody(response);
         await sleep(delayBeforeRetry(attempt, response));
         continue;
       }
@@ -137,6 +173,7 @@ export async function fetchExternal(
             : undefined,
         )
       ) {
+        releaseResponseBody(response);
         throw new Error(
           `HTTP ${response.status} after ${attempt + 1} attempts`,
         );

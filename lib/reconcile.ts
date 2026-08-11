@@ -131,8 +131,9 @@ export function approachDateKey(date: string): string | null {
 
 /**
  * Absolute day gap between YYYY-MM-DD keys, or null if either key is invalid.
- * Used to treat same-flyby dates that disagree by one calendar day (midnight /
- * ephemeris skew) as one encounter for geometry comparison.
+ * Used to treat same-flyby dates that disagree by a few calendar days (UTC
+ * midnight skew / uncertain ephemerides) as one encounter for geometry
+ * comparison.
  */
 export function daysBetweenDateKeys(
   a: string,
@@ -154,10 +155,14 @@ export function daysBetweenDateKeys(
   return Math.abs(Math.round((aUtc - bUtc) / 86_400_000));
 }
 
-/** Max calendar-day gap still treated as the same physical close approach. */
-export const SAME_ENCOUNTER_MAX_DAY_DELTA = 1;
+/**
+ * Max calendar-day gap still treated as the same physical close approach.
+ * ±1 covers midnight rollover; ±2 covers poorly constrained epochs (e.g. live
+ * 2024 JY1: JPL + ESA dates two days apart with multi-day time sigma).
+ */
+export const SAME_ENCOUNTER_MAX_DAY_DELTA = 2;
 
-/** True when both dates parse and fall on the same flyby (±1 calendar day). */
+/** True when both dates parse and fall on the same flyby (±2 calendar days). */
 export function encounterDaysAlign(
   jplDate: string | undefined,
   esaDate: string | undefined,
@@ -396,7 +401,8 @@ function buildReconciledObject(
   const esaDate = opts.esaClose?.date;
   const jplKey = jplDate ? approachDateKey(jplDate) : null;
   const esaKey = esaDate ? approachDateKey(esaDate) : null;
-  // Same flyby may disagree by one calendar day (UTC midnight / ephemeris skew).
+  // Same flyby may disagree by up to two calendar days (UTC midnight /
+  // uncertain ephemeris). Wider gaps are treated as unrelated encounters.
   const sameEncounter = encounterDaysAlign(jplDate, esaDate);
 
   if (jplDate && esaDate && jplKey && esaKey && jplKey !== esaKey) {
@@ -406,7 +412,7 @@ function buildReconciledObject(
     });
   }
 
-  // Geometry is encounter-specific: compare only for the same flyby (±1 day).
+  // Geometry is encounter-specific: compare only for the same flyby (±2 days).
   if (sameEncounter) {
     const jplDist = opts.jplCad?.distanceAu;
     const esaDist = opts.esaClose?.missDistanceAu;
@@ -578,7 +584,7 @@ export function filterReconciledObjects(
 
 /**
  * Choose the close-approach pair to surface for a designation.
- * Among all same-flyby pairs (exact day or ±1-day midnight/ephemeris skew),
+ * Among all same-flyby pairs (exact day or ±2-day midnight/ephemeris skew),
  * prefer the chronologically earliest; break ties with tighter day gap, then
  * stable day keys. If none align, fall back to the earliest encounter from
  * each source (geometry compared only for aligned encounters).
@@ -616,8 +622,8 @@ export function selectPrimaryCloseApproaches(
     }
   }
 
-  // Exact and ±1-day pairs compete together so a later exact match cannot
-  // hide an earlier same-flyby that only disagrees by one calendar day.
+  // Exact and ±2-day pairs compete together so a later exact match cannot
+  // hide an earlier same-flyby that only disagrees by a few calendar days.
   const alignedPairs: { jplDay: string; esaDay: string; gap: number }[] = [];
   for (const jplDay of jplByDay.keys()) {
     for (const esaDay of esaByDay.keys()) {

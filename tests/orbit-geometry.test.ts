@@ -48,6 +48,17 @@ describe("orbit-geometry", () => {
     expect(g!.hasDivergence).toBe(true);
   });
 
+  it("flags divergence for same flyby when dates disagree by two calendar days", () => {
+    const g = buildApproachGeometry({
+      designation: "2024 JY1",
+      jplDistanceAu: 0.0203534963606222,
+      esaDistanceAu: 0.01808,
+      jplDate: "2027-Jun-08 00:54",
+      esaDate: "2027-06-06",
+    });
+    expect(g!.hasDivergence).toBe(true);
+  });
+
   it("does not flag geometric divergence across unrelated encounter months", () => {
     const g = buildApproachGeometry({
       designation: "MISMATCH",

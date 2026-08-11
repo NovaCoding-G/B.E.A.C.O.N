@@ -140,6 +140,11 @@ export default function MethodologyPage() {
             <li>No DB — short TTL memory cache.</li>
             <li>3D panel is miss distance only.</li>
             <li>We don’t recompute impact probabilities.</li>
+            <li>
+              Miss distance / v_rel compare only when JPL and ESA dates fall
+              within ±2 calendar days (same flyby with midnight or ephemeris
+              skew). Wider date gaps still show the date flag only.
+            </li>
           </ul>
         </section>
       </main>

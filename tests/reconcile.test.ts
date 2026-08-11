@@ -1206,7 +1206,69 @@ describe("multi-encounter close-approach pairing", () => {
     expect(fields).not.toContain("relativeVelocity");
   });
 
-  it("prefers a ±1-day near match over unrelated earliest encounters", () => {
+  it("compares geometry when the same flyby disagrees by two calendar days", () => {
+    // Live 2024 JY1 (2026-08-11 feeds): JPL 2027-Jun-08 vs ESA 2027-06-06
+    // with multi-day CAD time sigma. ±1-day alignment hid ~11% miss Δ.
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "2024 JY1",
+          closeApproachDate: "2027-Jun-08 00:54",
+          distanceAu: 0.0203534963606222,
+          velocityRelativeKms: 8.94473124299292,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "2024JY1",
+          date: "2027-06-06",
+          missDistanceAu: 0.01808,
+          relativeVelocityKms: 9.0,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: "2026-08-11T00:00:00.000Z",
+    });
+
+    const fields = result.objects[0].divergences.map((d) => d.field);
+    expect(fields).toContain("closeApproachDate");
+    expect(fields).toContain("missDistanceAu");
+    expect(fields).toContain("relativeVelocity");
+  });
+
+  it("still skips geometry when encounter days are three or more apart", () => {
+    const result = reconcileSources({
+      jplCad: [
+        {
+          designation: "WIDE",
+          closeApproachDate: "2026-Jul-10 12:00",
+          distanceAu: 0.01,
+          velocityRelativeKms: 20,
+        },
+      ],
+      jplSentry: [],
+      esaRisk: [],
+      esaClose: [
+        {
+          designation: "WIDE",
+          date: "2026-07-13",
+          missDistanceAu: 0.04,
+          relativeVelocityKms: 5,
+        },
+      ],
+      sourceStatus: baseStatus,
+      referenceDate: REF_DATE,
+    });
+
+    const fields = result.objects[0].divergences.map((d) => d.field);
+    expect(fields).toContain("closeApproachDate");
+    expect(fields).not.toContain("missDistanceAu");
+    expect(fields).not.toContain("relativeVelocity");
+  });
+
+  it("prefers a ±2-day near match over unrelated earliest encounters", () => {
     const primary = selectPrimaryCloseApproaches(
       [
         {
@@ -1231,6 +1293,31 @@ describe("multi-encounter close-approach pairing", () => {
 
     expect(primary.jplCad?.closeApproachDate).toBe("2026-Jan-15 23:50");
     expect(primary.esaClose?.date).toBe("2026-01-16");
+
+    const primaryTwoDay = selectPrimaryCloseApproaches(
+      [
+        {
+          designation: "NEAR2",
+          closeApproachDate: "2026-Mar-10 00:30",
+          distanceAu: 0.02,
+        },
+        {
+          designation: "NEAR2",
+          closeApproachDate: "2026-Sep-01 12:00",
+          distanceAu: 0.04,
+        },
+      ],
+      [
+        {
+          designation: "NEAR2",
+          date: "2026-03-08",
+          missDistanceAu: 0.018,
+        },
+      ],
+    );
+
+    expect(primaryTwoDay.jplCad?.closeApproachDate).toBe("2026-Mar-10 00:30");
+    expect(primaryTwoDay.esaClose?.date).toBe("2026-03-08");
   });
 
   it("selectPrimaryCloseApproaches returns the earliest shared day", () => {

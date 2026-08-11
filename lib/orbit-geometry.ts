@@ -112,7 +112,7 @@ export function buildApproachGeometry(
     };
   }
 
-  // Mirror reconcile: only flag geometric Δ for the same flyby (±1 day).
+  // Mirror reconcile: only flag geometric Δ for the same flyby (±2 days).
   const hasDivergence =
     markers.length === 2 &&
     encounterDaysAlign(input.jplDate, input.esaDate) &&
